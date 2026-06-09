@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: whisper_platform
+      POSTGRES_USER: whisper
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-whisper_secret}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whisper -d whisper_platform"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://whisper:${DB_PASSWORD:-whisper_secret}@db:5432/whisper_platform
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:1234/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-lm-studio}
+      LLM_MODEL: ${LLM_MODEL:-lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF}
+      WHISPER_MODEL_DIR: /app/models
+      STORAGE_DIR: /app/storage
+      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:80","http://localhost"]}
+    volumes:
+      - models:/app/models
+      - storage:/app/storage
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+
+volumes:
+  pgdata:
+  models:
+  storage:
