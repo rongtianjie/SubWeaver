@@ -1,3 +1,17 @@
+from pydantic import BaseModel
+
+
+class LlmTestRequest(BaseModel):
+    base_url: str | None = None
+    api_key: str | None = None
+    model: str | None = None
+
+
+class LlmFetchModelsRequest(BaseModel):
+    base_url: str
+    api_key: str
+
+
 import os
 from uuid import UUID
 
@@ -10,7 +24,8 @@ from app.dependencies import require_admin
 from app.models.user import User
 from app.models.task import Task
 from app.schemas.admin import ConfigUpdate, ConfigResponse, AdminStats, UserRoleUpdate, HealthCheckItem
-from app.services.config_service import get_all_configs, set_config_value
+from app.services.config_service import get_all_configs, set_config_value, get_config_value
+from app.config import settings
 from app.startup_checker.checker import checker
 from app.startup_checker.checks.db_check import check_database
 from app.startup_checker.checks.ffmpeg_check import check_ffmpeg
@@ -178,6 +193,75 @@ async def admin_stats(
         total_users=total_users,
         storage_usage_mb=round(storage_usage / (1024 * 1024), 2),
     )
+
+
+@router.post("/llm/test")
+async def test_llm_connection(
+    req: LlmTestRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """测试 LLM 配置是否可用：发送 'hi' 并检查返回"""
+    # 优先使用请求体传入的参数，其次从 DB / 环境变量读取
+    base_url = req.base_url or await get_config_value(db, "llm_base_url") or settings.LLM_BASE_URL
+    api_key = req.api_key or await get_config_value(db, "llm_api_key") or settings.LLM_API_KEY
+    model = req.model or await get_config_value(db, "llm_model") or settings.LLM_MODEL
+
+    from openai import OpenAI
+    import time
+    try:
+        client = OpenAI(base_url=base_url, api_key=api_key, timeout=15)
+        start = time.perf_counter()
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": "hi"}],
+            max_tokens=10,
+        )
+        elapsed = round((time.perf_counter() - start) * 1000)
+        reply = resp.choices[0].message.content.strip() if resp.choices else ""
+        return {
+            "success": True,
+            "message": f"LLM 连接成功，模型 '{model}' 正常响应",
+            "response": reply,
+            "latency_ms": elapsed,
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "success": False,
+                "message": f"连接失败: {e}",
+                "config": {"base_url": base_url, "model": model},
+            },
+        )
+
+
+@router.post("/llm/fetch-models")
+async def fetch_llm_models(
+    req: LlmFetchModelsRequest,
+    admin: User = Depends(require_admin),
+):
+    """获取 LLM 后端支持的所有模型列表"""
+    from openai import OpenAI
+    try:
+        client = OpenAI(base_url=req.base_url, api_key=req.api_key, timeout=15)
+        models = client.models.list()
+        # 过滤掉非聊天模型（如 OMLX 返回的 MarkItDown，其 max_model_len 为 null）
+        model_ids = sorted([
+            m.id for m in models
+            if not (
+                hasattr(m, 'model_extra')
+                and m.model_extra
+                and 'max_model_len' in m.model_extra
+                and m.model_extra.get('max_model_len') is None
+            )
+        ])
+        return {"models": model_ids}
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"获取模型列表失败: {e}",
+        )
 
 
 @router.get("/health", response_model=list[HealthCheckItem])

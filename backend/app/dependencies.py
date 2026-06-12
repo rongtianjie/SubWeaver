@@ -31,14 +31,19 @@ async def get_current_user(
 
 
 async def require_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
     """强制的用户认证"""
-    payload = decode_access_token(credentials.credentials)
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="登录会话已过期，请刷新页面后重新登录")
+    try:
+        payload = decode_access_token(credentials.credentials)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="登录会话已过期，请刷新页面后重新登录")
     user_id = payload.get("sub")
     if user_id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="无效的认证凭据")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="登录会话已过期，请刷新页面后重新登录")
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()

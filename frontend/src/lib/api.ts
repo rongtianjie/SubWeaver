@@ -94,4 +94,19 @@ export const adminApi = {
   getStats: () => api.get('/admin/stats'),
 
   getHealth: () => api.get('/admin/health'),
+
+  testLlm: (data?: { base_url?: string; api_key?: string; model?: string }) =>
+    api.post('/admin/llm/test', data || {}),
+
+  fetchLlmModels: (data: { base_url: string; api_key: string }) =>
+    api.post('/admin/llm/fetch-models', data),
+};
+
+// ===== 模型管理 API =====
+export const modelApi = {
+  list: () => api.get('/models'),
+
+  download: (name: string) => api.post(`/models/${name}/download`),
+
+  deleteAll: () => api.delete('/models'),
 };

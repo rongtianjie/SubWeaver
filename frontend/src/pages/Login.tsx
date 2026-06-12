@@ -9,17 +9,26 @@ import { Loader2 } from 'lucide-react';
 export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState(localStorage.getItem('saved_username') || '');
+  const [password, setPassword] = useState(localStorage.getItem('saved_password') || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
+  const [savePassword, setSavePassword] = useState(!!localStorage.getItem('saved_password'));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      await login(username, password);
+      await login(username, password, rememberMe);
+      if (savePassword) {
+        localStorage.setItem('saved_username', username);
+        localStorage.setItem('saved_password', password);
+      } else {
+        localStorage.removeItem('saved_username');
+        localStorage.removeItem('saved_password');
+      }
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.detail || '登录失败');
@@ -55,6 +64,32 @@ export default function Login() {
                 placeholder="输入密码"
                 required
               />
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => {
+                    setRememberMe(e.target.checked);
+                    if (!e.target.checked) setSavePassword(false);
+                  }}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-gray-600">记住我</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={savePassword}
+                  onChange={(e) => {
+                    setSavePassword(e.target.checked);
+                    if (e.target.checked) setRememberMe(true);
+                  }}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-gray-600">保存密码</span>
+              </label>
             </div>
             {error && <p className="text-sm text-red-500">{error}</p>}
             <Button className="w-full" type="submit" disabled={loading}>

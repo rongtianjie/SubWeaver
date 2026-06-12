@@ -76,13 +76,14 @@ app.add_middleware(
 )
 
 # 注册路由
-from app.api.v1 import auth, tasks, health, admin, files
+from app.api.v1 import auth, tasks, health, admin, files, models
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(files.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(models.router, prefix="/api/v1")
 
 
 @app.get("/")

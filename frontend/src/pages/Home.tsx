@@ -1,11 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { taskApi } from '@/lib/api';
+import { taskApi, modelApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, Link, FileAudio, Loader2 } from 'lucide-react';
+import { Upload, Link, FileAudio, Loader2, CheckCircle2, DownloadCloud } from 'lucide-react';
 
 const MODELS = [
   { value: 'tiny', label: 'Tiny (最快, 准确度最低)', speed: '⚡' },
@@ -45,7 +45,16 @@ export default function Home() {
   const [formats, setFormats] = useState<string[]>(['txt', 'srt', 'bilingual_srt']);
   const [langs, setLangs] = useState<string[]>(['zh']);
   const [submitting, setSubmitting] = useState(false);
+  const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    modelApi.list().then((res) => {
+      const status: Record<string, boolean> = {};
+      res.data.models.forEach((m: any) => { status[m.name] = m.is_downloaded; });
+      setModelStatus(status);
+    }).catch(() => {});
+  }, []);
 
   const toggleFormat = (value: string) => {
     setFormats((prev) =>
@@ -189,6 +198,11 @@ export default function Home() {
                       className="accent-blue-500"
                     />
                     <span className="text-sm">{m.label}</span>
+                    {modelStatus[m.value] === true ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                    ) : modelStatus[m.value] === false ? (
+                      <DownloadCloud className="w-3.5 h-3.5 text-gray-300" />
+                    ) : null}
                   </div>
                   <span className="text-xs text-gray-400">{m.speed}</span>
                 </label>

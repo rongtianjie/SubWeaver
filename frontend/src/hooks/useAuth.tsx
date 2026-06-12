@@ -5,25 +5,42 @@ import type { UserInfo } from '@/types';
 interface AuthContextType {
   user: UserInfo | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function getToken(key: string): string | null {
+  return localStorage.getItem(key) || sessionStorage.getItem(key);
+}
+
+function setToken(key: string, value: string, persistent: boolean) {
+  const storage = persistent ? localStorage : sessionStorage;
+  storage.setItem(key, value);
+  // 清理另一个存储，避免冲突
+  const other = persistent ? sessionStorage : localStorage;
+  other.removeItem(key);
+}
+
+function removeToken(key: string) {
+  localStorage.removeItem(key);
+  sessionStorage.removeItem(key);
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
+    const token = getToken('access_token');
     if (token) {
       authApi.getMe()
         .then((res) => setUser(res.data))
         .catch(() => {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
+          removeToken('access_token');
+          removeToken('refresh_token');
         })
         .finally(() => setLoading(false));
     } else {
@@ -31,10 +48,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const login = async (username: string, password: string, rememberMe = true) => {
     const res = await authApi.login({ username, password });
-    localStorage.setItem('access_token', res.data.access_token);
-    localStorage.setItem('refresh_token', res.data.refresh_token);
+    setToken('access_token', res.data.access_token, rememberMe);
+    setToken('refresh_token', res.data.refresh_token, rememberMe);
     const meRes = await authApi.getMe();
     setUser(meRes.data);
   };
@@ -44,8 +61,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    removeToken('access_token');
+    removeToken('refresh_token');
     setUser(null);
   };
 

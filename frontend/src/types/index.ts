@@ -50,3 +50,16 @@ export interface TaskListResponse {
   page: number
   page_size: number
 }
+
+export interface ModelInfo {
+  name: string
+  label: string
+  description: string
+  size_mb: number
+  is_downloaded: boolean
+  download: {
+    status: 'idle' | 'downloading' | 'completed' | 'error'
+    progress: number
+    error_message: string | null
+  }
+}
