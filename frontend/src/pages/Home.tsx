@@ -1,18 +1,19 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { taskApi, modelApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, Link, FileAudio, Loader2, CheckCircle2, DownloadCloud } from 'lucide-react';
+import { TaskListCard } from '@/components/shared/TaskListCard';
+import { Upload, Link as LinkIcon, FileAudio, Loader2, CheckCircle2, DownloadCloud, Sparkles, Zap } from 'lucide-react';
+import type { Task } from '@/types';
 
 const MODELS = [
-  { value: 'tiny', label: 'Tiny (最快, 准确度最低)', speed: '⚡⚡⚡⚡⚡' },
-  { value: 'base', label: 'Base (快速)', speed: '⚡⚡⚡⚡' },
-  { value: 'small', label: 'Small (推荐)', speed: '⚡⚡⚡' },
-  { value: 'medium', label: 'Medium (较慢, 更准确)', speed: '⚡⚡' },
-  { value: 'large', label: 'Large (最慢, 最准确)', speed: '⚡' },
+  { value: 'tiny', label: 'Tiny', desc: '最快, 准确度最低', speed: 5 },
+  { value: 'base', label: 'Base', desc: '快速', speed: 4 },
+  { value: 'small', label: 'Small', desc: '推荐', speed: 3 },
+  { value: 'medium', label: 'Medium', desc: '较慢, 更准确', speed: 2 },
+  { value: 'large', label: 'Large', desc: '最慢, 最准确', speed: 1 },
 ];
 
 const OUTPUT_FORMATS = [
@@ -36,7 +37,6 @@ const LANGUAGES = [
 ];
 
 export default function Home() {
-  const navigate = useNavigate();
   const [sourceType, setSourceType] = useState<'upload' | 'url'>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState('');
@@ -46,6 +46,8 @@ export default function Home() {
   const [langs, setLangs] = useState<string[]>(['zh']);
   const [submitting, setSubmitting] = useState(false);
   const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({});
+  const [recentTasks, setRecentTasks] = useState<Task[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -56,29 +58,39 @@ export default function Home() {
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    loadRecentTasks();
+  }, []);
+
+  const loadRecentTasks = async () => {
+    setLoadingTasks(true);
+    try {
+      const res = await taskApi.list({ page: 1, page_size: 5 });
+      setRecentTasks(res.data.tasks);
+    } catch {
+      // User may not be logged in
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
   const toggleFormat = (value: string) => {
-    setFormats((prev) =>
-      prev.includes(value) ? prev.filter((f) => f !== value) : [...prev, value]
-    );
+    setFormats((prev) => prev.includes(value) ? prev.filter((f) => f !== value) : [...prev, value]);
   };
 
   const toggleLang = (value: string) => {
-    setLangs((prev) =>
-      prev.includes(value) ? prev.filter((l) => l !== value) : [...prev, value]
-    );
+    setLangs((prev) => prev.includes(value) ? prev.filter((l) => l !== value) : [...prev, value]);
   };
 
   const handleSubmit = async () => {
     if (sourceType === 'upload' && !file) return;
     if (sourceType === 'url' && !url) return;
     setSubmitting(true);
-
     try {
       const formData = new FormData();
       formData.append('source_type', sourceType);
       formData.append('whisper_model', model);
       formData.append('output_formats', JSON.stringify(formats));
-
       if (sourceType === 'upload' && file) {
         formData.append('file', file);
         formData.append('title', title || file.name);
@@ -86,13 +98,11 @@ export default function Home() {
         formData.append('source_url', url);
         formData.append('title', title || url);
       }
-
       if (formats.includes('bilingual_srt') && langs.length > 0) {
         formData.append('translate_target_langs', JSON.stringify(langs));
       }
-
       const res = await taskApi.create(formData);
-      navigate(`/tasks/${res.data.id}`);
+      window.location.href = `/tasks/${res.data.id}`;
     } catch (err) {
       console.error('创建任务失败:', err);
       alert('创建任务失败，请重试');
@@ -101,50 +111,78 @@ export default function Home() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm('确定要删除此任务吗？')) return;
+    try {
+      await taskApi.delete(id);
+      loadRecentTasks();
+    } catch (err) {
+      console.error('删除失败:', err);
+    }
+  };
+
   return (
-    <div className="max-w-[1400px] mx-auto space-y-6 lg:space-y-8">
-      <div className="text-center space-y-3">
-        <h1 className="text-3xl lg:text-4xl font-bold tracking-tight">音视频转文字 / 字幕生成</h1>
-        <p className="text-gray-500 text-base">上传文件或粘贴链接，自动生成字幕和翻译</p>
+    <div className="max-w-[1400px] mx-auto space-y-8 animate-fade-in">
+      {/* Hero Section */}
+      <div className="hero-gradient rounded-3xl p-8 lg:p-12 text-center space-y-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-purple-500/5 dark:from-primary/10 dark:to-purple-500/10" />
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
+            <Zap className="w-4 h-4" />
+            AI 驱动的字幕生成
+          </div>
+          <h1 className="text-3xl lg:text-5xl font-bold tracking-tight">
+            音视频转字幕，
+            <span className="text-gradient">一键搞定</span>
+          </h1>
+          <p className="text-muted-foreground text-base lg:text-lg max-w-2xl mx-auto">
+            上传文件或粘贴链接，自动识别语音并生成字幕和翻译，支持多种语言和格式
+          </p>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>创建新任务</CardTitle>
+      {/* Create Task Card */}
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <Sparkles className="w-5 h-5 text-primary" />
+            创建新任务
+          </CardTitle>
           <CardDescription>选择输入来源并配置处理选项</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6 lg:p-8">
-          <Tabs
-            value={sourceType}
-            onValueChange={(v) => setSourceType(v as 'upload' | 'url')}
-          >
+        <CardContent className="space-y-6 lg:p-8 lg:pt-0">
+          {/* Source Type Tabs */}
+          <Tabs value={sourceType} onValueChange={(v) => setSourceType(v as 'upload' | 'url')}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="upload">
-                <Upload className="w-4 h-4 mr-2" /> 上传文件
+              <TabsTrigger value="upload" className="gap-2">
+                <Upload className="w-4 h-4" /> 上传文件
               </TabsTrigger>
-              <TabsTrigger value="url">
-                <Link className="w-4 h-4 mr-2" /> 在线链接
+              <TabsTrigger value="url" className="gap-2">
+                <LinkIcon className="w-4 h-4" /> 在线链接
               </TabsTrigger>
             </TabsList>
-
             <TabsContent value="upload" className="space-y-4">
               <div
-                className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition"
+                className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 group"
                 onClick={() => fileInputRef.current?.click()}
               >
                 {file ? (
                   <div className="space-y-2">
-                    <FileAudio className="w-8 h-8 mx-auto text-blue-500" />
+                    <div className="inline-flex p-3 rounded-2xl bg-primary/10">
+                      <FileAudio className="w-8 h-8 text-primary" />
+                    </div>
                     <p className="font-medium">{file.name}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       {(file.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <Upload className="w-8 h-8 mx-auto text-gray-400" />
-                    <p className="text-gray-500">点击或拖拽文件到此处</p>
-                    <p className="text-xs text-gray-400">支持 mp4, avi, mkv, mov, wav, mp3 等格式</p>
+                    <div className="inline-flex p-3 rounded-2xl bg-muted group-hover:bg-primary/10 transition-colors">
+                      <Upload className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </div>
+                    <p className="text-muted-foreground">点击或拖拽文件到此处</p>
+                    <p className="text-xs text-muted-foreground/60">支持 mp4, avi, mkv, mov, wav, mp3 等格式</p>
                   </div>
                 )}
                 <input
@@ -156,57 +194,63 @@ export default function Home() {
                 />
               </div>
             </TabsContent>
-
             <TabsContent value="url" className="space-y-4">
               <Input
                 placeholder="粘贴 YouTube 或其他视频链接..."
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
+                className="text-base h-12"
               />
-              <p className="text-xs text-gray-400">支持 YouTube、Bilibili 等 yt-dlp 支持的网站</p>
+              <p className="text-xs text-muted-foreground">支持 YouTube、Bilibili 等 yt-dlp 支持的网站</p>
             </TabsContent>
           </Tabs>
 
+          {/* Config Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
             <div className="space-y-6">
+              {/* Title */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">任务标题（可选）</label>
-                <Input
-                  placeholder="输入任务标题..."
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
+                <Input placeholder="输入任务标题..." value={title} onChange={(e) => setTitle(e.target.value)} />
               </div>
 
+              {/* Model Selection */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Whisper 模型</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {MODELS.map((m) => (
                     <label
                       key={m.value}
-                      className={`flex items-center justify-between p-2 rounded border cursor-pointer transition ${
+                      className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
                         model === m.value
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'hover:bg-gray-50'
+                          ? 'border-primary bg-primary/5 shadow-sm'
+                          : 'border-transparent bg-muted/50 hover:bg-muted hover:border-border'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         <input
                           type="radio"
                           name="model"
                           value={m.value}
                           checked={model === m.value}
                           onChange={() => setModel(m.value)}
-                          className="accent-blue-500"
+                          className="accent-primary sr-only"
                         />
-                        <span className="text-sm">{m.label}</span>
+                        <div>
+                          <span className="text-sm font-medium">{m.label}</span>
+                          <p className="text-xs text-muted-foreground">{m.desc}</p>
+                        </div>
                         {modelStatus[m.value] === true ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" />
                         ) : modelStatus[m.value] === false ? (
-                          <DownloadCloud className="w-3.5 h-3.5 text-gray-300" />
+                          <DownloadCloud className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
                         ) : null}
                       </div>
-                      <span className="text-xs text-gray-400">{m.speed}</span>
+                      <span className="text-xs text-muted-foreground flex gap-0.5">
+                        {Array.from({ length: m.speed }, (_, i) => (
+                          <Zap key={i} className="w-3 h-3 text-primary/60" />
+                        ))}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -214,49 +258,41 @@ export default function Home() {
             </div>
 
             <div className="space-y-6">
+              {/* Output Formats */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">输出格式</label>
                 <div className="flex flex-wrap gap-2">
                   {OUTPUT_FORMATS.map((f) => (
                     <label
                       key={f.value}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded border text-sm cursor-pointer transition ${
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm cursor-pointer transition-all duration-200 border-2 ${
                         formats.includes(f.value)
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'hover:bg-gray-50'
+                          ? 'border-primary bg-primary/5 text-primary shadow-sm'
+                          : 'border-transparent bg-muted/50 hover:bg-muted hover:border-border'
                       }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={formats.includes(f.value)}
-                        onChange={() => toggleFormat(f.value)}
-                        className="accent-blue-500"
-                      />
+                      <input type="checkbox" checked={formats.includes(f.value)} onChange={() => toggleFormat(f.value)} className="accent-primary sr-only" />
                       {f.label}
                     </label>
                   ))}
                 </div>
               </div>
 
+              {/* Languages */}
               {formats.includes('bilingual_srt') && (
-                <div className="space-y-2">
+                <div className="space-y-2 animate-fade-in">
                   <label className="text-sm font-medium">目标语言（可多选）</label>
                   <div className="flex flex-wrap gap-2">
                     {LANGUAGES.map((lang) => (
                       <label
                         key={lang.value}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-sm cursor-pointer transition ${
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm cursor-pointer transition-all duration-200 border-2 ${
                           langs.includes(lang.value)
-                            ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'hover:bg-gray-50'
+                            ? 'border-primary bg-primary/5 text-primary shadow-sm'
+                            : 'border-transparent bg-muted/50 hover:bg-muted hover:border-border'
                         }`}
                       >
-                        <input
-                          type="checkbox"
-                          checked={langs.includes(lang.value)}
-                          onChange={() => toggleLang(lang.value)}
-                          className="accent-blue-500"
-                        />
+                        <input type="checkbox" checked={langs.includes(lang.value)} onChange={() => toggleLang(lang.value)} className="accent-primary sr-only" />
                         {lang.label}
                       </label>
                     ))}
@@ -264,29 +300,60 @@ export default function Home() {
                 </div>
               )}
 
-              <Button
-                className="w-full lg:w-auto lg:min-w-[240px]"
-                size="lg"
-                disabled={
-                  submitting ||
-                  (sourceType === 'upload' && !file) ||
-                  (sourceType === 'url' && !url)
-                }
-                onClick={handleSubmit}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    提交中...
-                  </>
-                ) : (
-                  '提交任务'
-                )}
-              </Button>
+              {/* Submit */}
+              <div className="pt-2">
+                <Button
+                  className="w-full lg:w-auto lg:min-w-[240px]"
+                  variant="gradient"
+                  size="lg"
+                  disabled={submitting || (sourceType === 'upload' && !file) || (sourceType === 'url' && !url)}
+                  onClick={handleSubmit}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      提交中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      提交任务
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Recent Tasks */}
+      <section id="recent" className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold tracking-tight">最近任务</h2>
+        </div>
+
+        {loadingTasks ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : recentTasks.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center">
+              <div className="inline-flex p-4 rounded-2xl bg-muted mb-4">
+                <FileAudio className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <p className="text-muted-foreground">还没有任务，创建一个试试吧</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {recentTasks.map((task) => (
+              <TaskListCard key={task.id} task={task} onDelete={handleDelete} />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

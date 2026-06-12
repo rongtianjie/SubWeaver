@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { authApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, Film, ShieldAlert } from 'lucide-react';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { AuthDialog } from '@/components/shared/AuthDialog';
+import { UserMenu } from '@/components/shared/UserMenu';
+import { Film, ShieldAlert, Sparkles } from 'lucide-react';
 
 export function Header() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const [noAdmin, setNoAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authView, setAuthView] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
     if (user) {
@@ -22,53 +27,54 @@ export function Header() {
       .finally(() => setChecking(false));
   }, [user]);
 
-  return (
-    <header className="border-b bg-white">
-      <div className="max-w-[1800px] mx-auto px-4 lg:px-8 xl:px-12 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-lg">
-          <Film className="w-6 h-6" />
-          <span>Whisper 字幕</span>
-        </Link>
+  const openLogin = () => { setAuthView('login'); setAuthOpen(true); };
+  const openRegister = () => { setAuthView('register'); setAuthOpen(true); };
 
-        <nav className="flex items-center gap-4">
-          {user ? (
-            <>
-              <Link to="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">
-                我的任务
+  return (
+    <TooltipProvider>
+      <header className="sticky top-0 z-40 w-full border-b glass">
+        <div className="max-w-[1800px] mx-auto px-4 lg:px-8 xl:px-12 h-16 flex items-center justify-between">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <div className="p-1.5 rounded-xl bg-gradient-to-br from-primary to-purple-500 shadow-sm group-hover:shadow-md transition-shadow">
+              <Film className="w-4.5 h-4.5 text-white" />
+            </div>
+            <span className="font-bold text-lg tracking-tight">
+              <span className="text-gradient">Whisper</span>
+              <span className="text-foreground ml-1">字幕</span>
+            </span>
+          </Link>
+
+          {/* Right section */}
+          <nav className="flex items-center gap-2">
+            <ThemeToggle />
+
+            {user ? (
+              <UserMenu />
+            ) : noAdmin && !checking ? (
+              <Link to="/admin/setup">
+                <Button size="sm" variant="soft">
+                  <ShieldAlert className="w-4 h-4" />
+                  初始化管理后台
+                </Button>
               </Link>
-              {user.role === 'admin' && (
-                <Link to="/admin" className="text-sm text-gray-600 hover:text-gray-900">
-                  管理后台
-                </Link>
-              )}
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <User className="w-4 h-4" />
-                <span>{user.username}</span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={openLogin}>
+                  登录
+                </Button>
+                <Button variant="default" size="sm" onClick={openRegister}>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  注册
+                </Button>
               </div>
-              <Button variant="outline" size="sm" onClick={() => { logout(); navigate('/'); }}>
-                <LogOut className="w-4 h-4 mr-1" />
-                退出
-              </Button>
-            </>
-          ) : noAdmin && !checking ? (
-            <Link to="/admin/setup">
-              <Button size="sm">
-                <ShieldAlert className="w-4 h-4 mr-1" />
-                初始化管理后台
-              </Button>
-            </Link>
-          ) : (
-            <>
-              <Link to="/login">
-                <Button variant="outline" size="sm">登录</Button>
-              </Link>
-              <Link to="/register">
-                <Button size="sm">注册</Button>
-              </Link>
-            </>
-          )}
-        </nav>
-      </div>
-    </header>
+            )}
+          </nav>
+        </div>
+
+        {/* Auth Dialog */}
+        <AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialView={authView} />
+      </header>
+    </TooltipProvider>
   );
 }
