@@ -44,9 +44,9 @@ export default function Dashboard() {
   const totalPages = Math.ceil(total / pageSize);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 lg:space-y-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">我的任务</h1>
+        <h1 className="text-2xl lg:text-3xl font-bold">我的任务</h1>
         <Link to="/">
           <Button size="sm">创建新任务</Button>
         </Link>
@@ -74,35 +74,36 @@ export default function Dashboard() {
 
       {/* 任务列表 */}
       {loading ? (
-        <div className="flex justify-center py-12">
+        <div className="flex justify-center py-16">
           <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
         </div>
       ) : tasks.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center text-gray-500">
-            <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>还没有任务</p>
+          <CardContent className="py-16 text-center text-gray-500">
+            <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
+            <p className="text-lg">还没有任务</p>
             <Link to="/">
               <Button variant="outline" className="mt-4">创建第一个任务</Button>
             </Link>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 lg:space-y-4">
           {tasks.map((task) => (
             <Link key={task.id} to={`/tasks/${task.id}`}>
               <Card className="hover:shadow-md transition cursor-pointer">
-                <CardContent className="py-4">
+                <CardContent className="py-4 lg:py-5 lg:px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 lg:gap-3">
                         <TaskStatusIcon status={task.status} />
-                        <p className="font-medium truncate">{task.title}</p>
+                        <p className="font-medium truncate text-base">{task.title}</p>
                         <TaskBadge status={task.status} />
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs lg:text-sm text-gray-500 mt-1.5">
                         {new Date(task.created_at).toLocaleString()}
                         {task.whisper_model && ` · 模型: ${task.whisper_model}`}
+                        {task.source_filename && ` · ${task.source_filename}`}
                       </p>
                     </div>
                     <button

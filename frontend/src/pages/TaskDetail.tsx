@@ -56,8 +56,8 @@ export default function TaskDetail() {
   const progressPercent = task.progress * 100;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <Link to="/" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900">
+    <div className="max-w-[1200px] mx-auto space-y-6">
+      <Link to="/" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-900 mb-2">
         <ArrowLeft className="w-4 h-4 mr-1" /> 返回首页
       </Link>
 
@@ -94,7 +94,7 @@ export default function TaskDetail() {
           )}
 
           {/* 任务信息 */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 text-sm">
             <div>
               <span className="text-gray-500">输入来源</span>
               <p>{task.source_type === 'upload' ? '文件上传' : '在线链接'}</p>
@@ -126,12 +126,13 @@ export default function TaskDetail() {
           {/* 输出文件 */}
           {task.status === 'completed' && outputs.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-medium">输出文件</h3>
-              {outputs.map((output) => (
-                <div
-                  key={output.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                >
+              <h3 className="text-sm lg:text-base font-medium">输出文件</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {outputs.map((output) => (
+                  <div
+                    key={output.id}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition"
+                  >
                   <div>
                     <p className="text-sm font-medium">{formatLabel(output)}</p>
                     <p className="text-xs text-gray-500">
@@ -148,6 +149,7 @@ export default function TaskDetail() {
                   </Button>
                 </div>
               ))}
+            </div>
             </div>
           )}
         </CardContent>

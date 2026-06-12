@@ -24,7 +24,7 @@ export function Header() {
 
   return (
     <header className="border-b bg-white">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div className="max-w-[1800px] mx-auto px-4 lg:px-8 xl:px-12 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 font-semibold text-lg">
           <Film className="w-6 h-6" />
           <span>Whisper 字幕</span>

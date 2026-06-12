@@ -16,6 +16,7 @@ from app.startup_checker.checks.ffmpeg_check import check_ffmpeg
 from app.startup_checker.checks.whisper_check import check_whisper_model
 from app.startup_checker.checks.llm_check import check_llm_connection
 from app.worker.worker import Worker
+from app.services.config_service import init_default_configs, get_config_value
 
 # 注册检查项
 checker.register("数据库连接 (PostgreSQL)", check_database)
@@ -71,6 +72,17 @@ async def lifespan(app: FastAPI):
     # 启动横幅
     _log_startup_banner()
 
+    # 初始化默认配置（必须在日志摘要和启动检查之前）
+    try:
+        async with async_session_factory() as db:
+            await init_default_configs(db)
+            # 从数据库加载 LLM 模型名，覆盖 settings 中的空值
+            db_llm_model = await get_config_value(db, "llm_model")
+            if db_llm_model:
+                settings.LLM_MODEL = db_llm_model
+    except Exception as e:
+        logger.warning(f"初始化默认配置失败: {e}")
+
     # 关键配置摘要
     _log_config_summary()
 
@@ -78,13 +90,6 @@ async def lifespan(app: FastAPI):
     logger.info("正在执行系统环境检查...")
     results = await checker.run_all()
     ok = checker.print_report(results)
-
-    # 初始化默认配置
-    try:
-        async with async_session_factory() as db:
-            await init_default_configs(db)
-    except Exception as e:
-        logger.warning(f"初始化默认配置失败: {e}")
 
     # 启动 Worker（即使有非关键错误也启动）
     if ok:

@@ -339,31 +339,31 @@ export default function Admin() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* API 基础地址 */}
-            <div className="flex items-center justify-between py-2 border-b">
-              <div>
+            <div className="flex items-center justify-between py-2 border-b gap-4">
+              <div className="shrink-0">
                 <p className="text-sm font-medium">API 基础地址</p>
                 <p className="text-xs text-gray-500">例如: http://localhost:1234/v1</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1 max-w-xl">
                 <Input
                   value={llmForm.base_url}
                   onChange={(e) => setLlmForm((f) => ({ ...f, base_url: e.target.value }))}
-                  className="w-56 text-sm"
+                  className="w-full text-sm"
                 />
               </div>
             </div>
 
             {/* API 密钥 */}
-            <div className="flex items-center justify-between py-2 border-b">
-              <div>
+            <div className="flex items-center justify-between py-2 border-b gap-4">
+              <div className="shrink-0">
                 <p className="text-sm font-medium">API 密钥</p>
                 <p className="text-xs text-gray-500">例如: 1234, sk-xxx</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1 max-w-xl">
                 <Input
                   value={llmForm.api_key}
                   onChange={(e) => setLlmForm((f) => ({ ...f, api_key: e.target.value }))}
-                  className="w-56 text-sm"
+                  className="w-full text-sm"
                 />
               </div>
             </div>

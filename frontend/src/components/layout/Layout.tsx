@@ -5,7 +5,7 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-[1800px] mx-auto px-4 lg:px-8 xl:px-12 py-8">
         <Outlet />
       </main>
     </div>

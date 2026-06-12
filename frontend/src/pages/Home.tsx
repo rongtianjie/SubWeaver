@@ -102,10 +102,10 @@ export default function Home() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold">音视频转文字 / 字幕生成</h1>
-        <p className="text-gray-500">上传文件或粘贴链接，自动生成字幕和翻译</p>
+    <div className="max-w-[1400px] mx-auto space-y-6 lg:space-y-8">
+      <div className="text-center space-y-3">
+        <h1 className="text-3xl lg:text-4xl font-bold tracking-tight">音视频转文字 / 字幕生成</h1>
+        <p className="text-gray-500 text-base">上传文件或粘贴链接，自动生成字幕和翻译</p>
       </div>
 
       <Card>
@@ -113,7 +113,7 @@ export default function Home() {
           <CardTitle>创建新任务</CardTitle>
           <CardDescription>选择输入来源并配置处理选项</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 lg:p-8">
           <Tabs
             value={sourceType}
             onValueChange={(v) => setSourceType(v as 'upload' | 'url')}
@@ -167,118 +167,124 @@ export default function Home() {
             </TabsContent>
           </Tabs>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">任务标题（可选）</label>
-            <Input
-              placeholder="输入任务标题..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">任务标题（可选）</label>
+                <Input
+                  placeholder="输入任务标题..."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Whisper 模型</label>
-            <div className="grid grid-cols-1 gap-2">
-              {MODELS.map((m) => (
-                <label
-                  key={m.value}
-                  className={`flex items-center justify-between p-2 rounded border cursor-pointer transition ${
-                    model === m.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="model"
-                      value={m.value}
-                      checked={model === m.value}
-                      onChange={() => setModel(m.value)}
-                      className="accent-blue-500"
-                    />
-                    <span className="text-sm">{m.label}</span>
-                    {modelStatus[m.value] === true ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                    ) : modelStatus[m.value] === false ? (
-                      <DownloadCloud className="w-3.5 h-3.5 text-gray-300" />
-                    ) : null}
-                  </div>
-                  <span className="text-xs text-gray-400">{m.speed}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">输出格式</label>
-            <div className="flex flex-wrap gap-2">
-              {OUTPUT_FORMATS.map((f) => (
-                <label
-                  key={f.value}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded border text-sm cursor-pointer transition ${
-                    formats.includes(f.value)
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={formats.includes(f.value)}
-                    onChange={() => toggleFormat(f.value)}
-                    className="accent-blue-500"
-                  />
-                  {f.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {formats.includes('bilingual_srt') && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">目标语言（可多选）</label>
-              <div className="flex flex-wrap gap-2">
-                {LANGUAGES.map((lang) => (
-                  <label
-                    key={lang.value}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-sm cursor-pointer transition ${
-                      langs.includes(lang.value)
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={langs.includes(lang.value)}
-                      onChange={() => toggleLang(lang.value)}
-                      className="accent-blue-500"
-                    />
-                    {lang.label}
-                  </label>
-                ))}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Whisper 模型</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {MODELS.map((m) => (
+                    <label
+                      key={m.value}
+                      className={`flex items-center justify-between p-2 rounded border cursor-pointer transition ${
+                        model === m.value
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="model"
+                          value={m.value}
+                          checked={model === m.value}
+                          onChange={() => setModel(m.value)}
+                          className="accent-blue-500"
+                        />
+                        <span className="text-sm">{m.label}</span>
+                        {modelStatus[m.value] === true ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                        ) : modelStatus[m.value] === false ? (
+                          <DownloadCloud className="w-3.5 h-3.5 text-gray-300" />
+                        ) : null}
+                      </div>
+                      <span className="text-xs text-gray-400">{m.speed}</span>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
-          )}
 
-          <Button
-            className="w-full"
-            size="lg"
-            disabled={
-              submitting ||
-              (sourceType === 'upload' && !file) ||
-              (sourceType === 'url' && !url)
-            }
-            onClick={handleSubmit}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                提交中...
-              </>
-            ) : (
-              '提交任务'
-            )}
-          </Button>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">输出格式</label>
+                <div className="flex flex-wrap gap-2">
+                  {OUTPUT_FORMATS.map((f) => (
+                    <label
+                      key={f.value}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded border text-sm cursor-pointer transition ${
+                        formats.includes(f.value)
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formats.includes(f.value)}
+                        onChange={() => toggleFormat(f.value)}
+                        className="accent-blue-500"
+                      />
+                      {f.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {formats.includes('bilingual_srt') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">目标语言（可多选）</label>
+                  <div className="flex flex-wrap gap-2">
+                    {LANGUAGES.map((lang) => (
+                      <label
+                        key={lang.value}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded border text-sm cursor-pointer transition ${
+                          langs.includes(lang.value)
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={langs.includes(lang.value)}
+                          onChange={() => toggleLang(lang.value)}
+                          className="accent-blue-500"
+                        />
+                        {lang.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Button
+                className="w-full lg:w-auto lg:min-w-[240px]"
+                size="lg"
+                disabled={
+                  submitting ||
+                  (sourceType === 'upload' && !file) ||
+                  (sourceType === 'url' && !url)
+                }
+                onClick={handleSubmit}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    提交中...
+                  </>
+                ) : (
+                  '提交任务'
+                )}
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
