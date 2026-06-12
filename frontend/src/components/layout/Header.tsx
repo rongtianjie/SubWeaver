@@ -1,11 +1,26 @@
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { authApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, Film } from 'lucide-react';
+import { LogOut, User, Film, ShieldAlert } from 'lucide-react';
 
 export function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [noAdmin, setNoAdmin] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      setChecking(false);
+      return;
+    }
+    authApi.checkAdminExists()
+      .then((res) => setNoAdmin(!res.data.exists))
+      .catch(() => setNoAdmin(false))
+      .finally(() => setChecking(false));
+  }, [user]);
 
   return (
     <header className="border-b bg-white">
@@ -35,6 +50,13 @@ export function Header() {
                 退出
               </Button>
             </>
+          ) : noAdmin && !checking ? (
+            <Link to="/admin/setup">
+              <Button size="sm">
+                <ShieldAlert className="w-4 h-4 mr-1" />
+                初始化管理后台
+              </Button>
+            </Link>
           ) : (
             <>
               <Link to="/login">

@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     DEFAULT_WHISPER_MODEL: str = "base"
 
     # 翻译 LLM（OpenAI 兼容接口）
-    LLM_BASE_URL: str = "http://localhost:1234/v1"
-    LLM_API_KEY: str = "lm-studio"
-    LLM_MODEL: str = "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF"
+    LLM_BASE_URL: str = "http://host.docker.internal:8000/v1"
+    LLM_API_KEY: str = "1234"
+    LLM_MODEL: str = ""
 
     # 系统配置
     RETENTION_DAYS: int = 30

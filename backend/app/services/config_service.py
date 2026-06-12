@@ -40,9 +40,9 @@ async def init_default_configs(db: AsyncSession):
         "max_file_size_mb": (500, "最大上传文件大小 (MB)"),
         "retention_days": (30, "文件保留天数"),
         "guest_task_limit": (3, "游客每日任务上限"),
-        "llm_base_url": ("http://localhost:1234/v1", "LLM API 基础地址"),
+        "llm_base_url": ("http://host.docker.internal:8000/v1", "LLM API 基础地址"),
         "llm_api_key": ("1234", "LLM API 密钥"),
-        "llm_model": ("lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF", "LLM 模型名称"),
+        "llm_model": ("", "LLM 模型名称"),
         "default_whisper_model": ("base", "默认 Whisper 模型"),
     }
 

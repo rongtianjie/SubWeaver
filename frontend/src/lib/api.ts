@@ -42,6 +42,11 @@ export const authApi = {
     api.post('/auth/refresh', { refresh_token }),
 
   getMe: () => api.get('/auth/me'),
+
+  checkAdminExists: () => api.get('/auth/admin-exists'),
+
+  registerAdmin: (data: { username: string; email: string; password: string }) =>
+    api.post('/auth/register-admin', data),
 };
 
 // ===== 任务 API =====

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { adminApi, modelApi } from '@/lib/api';
+import { adminApi, modelApi, authApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,7 @@ interface Config {
 }
 
 export default function Admin() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState<Stats | null>(null);
   const [configs, setConfigs] = useState<Record<string, Config>>({});
@@ -37,10 +37,22 @@ export default function Admin() {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [fetchModelsError, setFetchModelsError] = useState<string | null>(null);
   const [llmForm, setLlmForm] = useState({ base_url: '', api_key: '', model: '' });
+  const [llmSaveSuccess, setLlmSaveSuccess] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
+
     if (!user) {
-      window.location.href = '/login';
+      // 未登录时检查是否存在管理员
+      authApi.checkAdminExists().then((res) => {
+        if (!res.data.exists) {
+          window.location.href = '/admin/setup';
+        } else {
+          window.location.href = '/login';
+        }
+      }).catch(() => {
+        window.location.href = '/login';
+      });
       return;
     }
     if (user.role !== 'admin') {
@@ -136,6 +148,8 @@ export default function Admin() {
       updateConfig('llm_api_key', llmForm.api_key),
       updateConfig('llm_model', llmForm.model),
     ]);
+    setLlmSaveSuccess(true);
+    setTimeout(() => setLlmSaveSuccess(false), 3000);
   };
 
   const handleFetchLlmModels = async () => {
@@ -429,9 +443,12 @@ export default function Admin() {
             </div>
 
             <div className="pt-4 flex justify-end">
-              <Button onClick={handleSaveLlmConfig}>
-                <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                保存配置
+              <Button
+                onClick={handleSaveLlmConfig}
+                className={llmSaveSuccess ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+              >
+                <CheckCircle2 className={`w-4 h-4 mr-1.5 ${llmSaveSuccess ? 'text-white' : ''}`} />
+                {llmSaveSuccess ? '保存成功' : '保存配置'}
               </Button>
             </div>
           </CardContent>

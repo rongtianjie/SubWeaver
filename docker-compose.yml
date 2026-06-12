@@ -26,9 +26,9 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://whisper:${DB_PASSWORD:-whisper_secret}@db:5432/whisper_platform
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:1234/v1}
-      LLM_API_KEY: ${LLM_API_KEY:-lm-studio}
-      LLM_MODEL: ${LLM_MODEL:-lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8000/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-1234}
+      LLM_MODEL: ${LLM_MODEL:-}
       WHISPER_MODEL_DIR: /app/models
       STORAGE_DIR: /app/storage
       MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}

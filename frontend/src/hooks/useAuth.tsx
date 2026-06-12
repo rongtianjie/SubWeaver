@@ -7,6 +7,7 @@ interface AuthContextType {
   loading: boolean;
   login: (username: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
+  registerAdmin: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -60,6 +61,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await authApi.register({ username, email, password });
   };
 
+  const registerAdmin = async (username: string, email: string, password: string) => {
+    await authApi.registerAdmin({ username, email, password });
+    // 注册成功后自动登录
+    const loginRes = await authApi.login({ username, password });
+    const rememberMe = !!localStorage.getItem('access_token') || !sessionStorage.getItem('access_token');
+    const storage = rememberMe ? localStorage : sessionStorage;
+    storage.setItem('access_token', loginRes.data.access_token);
+    storage.setItem('refresh_token', loginRes.data.refresh_token);
+    const meRes = await authApi.getMe();
+    setUser(meRes.data);
+  };
+
   const logout = () => {
     removeToken('access_token');
     removeToken('refresh_token');
@@ -67,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, registerAdmin, logout }}>
       {children}
     </AuthContext.Provider>
   );

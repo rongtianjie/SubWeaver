@@ -7,6 +7,7 @@ import Register from '@/pages/Register';
 import Dashboard from '@/pages/Dashboard';
 import TaskDetail from '@/pages/TaskDetail';
 import Admin from '@/pages/Admin';
+import AdminSetup from '@/pages/AdminSetup';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/tasks/:id" element={<TaskDetail />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/setup" element={<AdminSetup />} />
           </Route>
         </Routes>
       </AuthProvider>
