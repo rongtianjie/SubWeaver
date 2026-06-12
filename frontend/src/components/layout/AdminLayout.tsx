@@ -71,8 +71,7 @@ export function AdminLayout() {
                 <Film className="w-4.5 h-4.5 text-white" />
               </div>
               <span className="font-bold text-lg tracking-tight">
-                <span className="text-gradient">Whisper</span>
-                <span className="text-foreground ml-1">字幕</span>
+                <span className="text-gradient">SubWeaver</span>
               </span>
             </Link>
             <Separator orientation="vertical" className="h-6" />
