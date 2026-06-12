@@ -6,16 +6,18 @@ export interface Task {
   source_type: "upload" | "url"
   source_url: string | null
   source_filename: string | null
+  file_size: number | null
   whisper_model: string
   translate_llm_model: string | null
   output_formats: string[]
   translate_target_langs: string[] | null
-  status: "pending" | "queued" | "processing" | "completed" | "failed"
+  status: "pending" | "queued" | "processing" | "completed" | "failed" | "cancelled"
   progress: number
   progress_message: string | null
   queue_position: number | null
   estimated_seconds: number | null
   error_message: string | null
+  cancel_requested: boolean
   created_at: string
   started_at: string | null
   completed_at: string | null

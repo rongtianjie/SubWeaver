@@ -2,7 +2,7 @@
 set -e
 
 echo "========================================="
-echo "  Whisper Platform - Docker Entrypoint"
+echo "  SubWeaver - Docker Entrypoint"
 echo "========================================="
 
 # 执行数据库迁移

@@ -16,7 +16,7 @@ import os
 from uuid import UUID
 import json
 import gzip
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -31,6 +31,8 @@ from app.models.user import User
 from app.models.task import Task
 from app.schemas.admin import ConfigUpdate, ConfigResponse, AdminStats, UserRoleUpdate, HealthCheckItem, LogFileInfo, LogContent
 from app.services.config_service import get_all_configs, set_config_value, get_config_value
+from app.core.task_queue import task_queue
+from app.core.storage import storage
 from app.config import settings
 from app.startup_checker.checker import checker
 from app.startup_checker.checks.db_check import check_database
@@ -65,6 +67,14 @@ async def admin_list_tasks(
     )
     tasks = result.scalars().all()
 
+    def _get_file_size(task: Task) -> int | None:
+        if task.file_path and os.path.exists(task.file_path):
+            try:
+                return os.path.getsize(task.file_path)
+            except OSError:
+                pass
+        return None
+
     return {
         "tasks": [
             {
@@ -74,6 +84,7 @@ async def admin_list_tasks(
                 "source_type": t.source_type,
                 "source_filename": t.source_filename,
                 "source_url": t.source_url,
+                "file_size": _get_file_size(t),
                 "status": t.status,
                 "progress": t.progress,
                 "progress_message": t.progress_message,
@@ -81,6 +92,7 @@ async def admin_list_tasks(
                 "translate_llm_model": t.translate_llm_model,
                 "username": t.user.username if t.user else None,
                 "error_message": t.error_message,
+                "cancel_requested": t.cancel_requested,
                 "created_at": str(t.created_at),
                 "started_at": str(t.started_at) if t.started_at else None,
                 "completed_at": str(t.completed_at) if t.completed_at else None,
@@ -91,6 +103,47 @@ async def admin_list_tasks(
         "page": page,
         "page_size": page_size,
     }
+
+
+@router.delete("/tasks/{task_id}")
+async def admin_delete_task(
+    task_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """删除任务及其关联的媒体文件和输出文件"""
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    # 删除存储的媒体文件和输出文件
+    storage.delete_task_files(task_id)
+    # 删除数据库记录（cascade 会自动删除 TaskOutput）
+    await db.delete(task)
+    await db.commit()
+    return {"message": "任务已删除"}
+
+
+@router.put("/tasks/{task_id}/cancel")
+async def cancel_task(
+    task_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if task.status not in ("queued", "processing"):
+        raise HTTPException(status_code=400, detail="只能取消正在处理或排队中的任务")
+
+    task.cancel_requested = True
+    task.progress_message = "正在等待当前阶段结束..."
+    await db.commit()
+    await task_queue.update_queue_positions(db)
+    await db.commit()
+    return {"message": "取消请求已提交，任务将在当前阶段结束后停止"}
 
 
 @router.put("/tasks/{task_id}/retry")
@@ -183,6 +236,7 @@ async def admin_stats(
     processing = await db.scalar(select(func.count(Task.id)).where(Task.status.in_(["queued", "processing"]))) or 0
     completed = await db.scalar(select(func.count(Task.id)).where(Task.status == "completed")) or 0
     failed = await db.scalar(select(func.count(Task.id)).where(Task.status == "failed")) or 0
+    cancelled = await db.scalar(select(func.count(Task.id)).where(Task.status == "cancelled")) or 0
     total_users = await db.scalar(select(func.count(User.id))) or 0
 
     # 估算存储使用量
@@ -204,6 +258,7 @@ async def admin_stats(
         processing_tasks=processing,
         completed_tasks=completed,
         failed_tasks=failed,
+        cancelled_tasks=cancelled,
         total_users=total_users,
         storage_usage_mb=round(storage_usage / (1024 * 1024), 2),
     )

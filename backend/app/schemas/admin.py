@@ -22,6 +22,7 @@ class AdminStats(BaseModel):
     processing_tasks: int
     completed_tasks: int
     failed_tasks: int
+    cancelled_tasks: int
     total_users: int
     storage_usage_mb: float
 

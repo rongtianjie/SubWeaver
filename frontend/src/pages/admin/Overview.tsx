@@ -5,10 +5,18 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import {
   Activity, Users, FileText, HardDrive, Loader2, Cpu, User, PlayCircle,
-  Clock, CheckCircle2, XCircle, Timer, Globe, Upload, ChevronLeft, ChevronRight, AlertCircle,
+  Clock, CheckCircle2, XCircle, Timer, Globe, Upload, ChevronLeft, ChevronRight, AlertCircle, Ban, Trash2,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import type { Task } from '@/types';
 
 interface Stats {
@@ -17,6 +25,7 @@ interface Stats {
   processing_tasks: number;
   completed_tasks: number;
   failed_tasks: number;
+  cancelled_tasks: number;
   total_users: number;
   storage_usage_mb: number;
 }
@@ -59,6 +68,13 @@ function getTaskDuration(task: Task): string {
   return formatDuration(dur);
 }
 
+function formatFileSize(bytes: number | null | undefined): string {
+  if (!bytes || bytes <= 0) return '-';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
 function StatusBadgeIcon({ status }: { status: Task['status'] }) {
   const config: Record<Task['status'], { icon: React.ReactNode; variant: 'success' | 'warning' | 'destructive' | 'secondary' | 'default'; label: string }> = {
     pending: { icon: <Clock className="w-3 h-3" />, variant: 'secondary', label: '等待中' },
@@ -66,6 +82,7 @@ function StatusBadgeIcon({ status }: { status: Task['status'] }) {
     processing: { icon: <Loader2 className="w-3 h-3 animate-spin" />, variant: 'warning', label: '处理中' },
     completed: { icon: <CheckCircle2 className="w-3 h-3" />, variant: 'success', label: '已完成' },
     failed: { icon: <XCircle className="w-3 h-3" />, variant: 'destructive', label: '失败' },
+    cancelled: { icon: <Ban className="w-3 h-3" />, variant: 'secondary', label: '已取消' },
   };
   const c = config[status];
   if (!c) return null;
@@ -89,6 +106,8 @@ export default function Overview() {
   const [allTasks, setAllTasks] = useState<TaskListResponse | null>(null);
   const [allPage, setAllPage] = useState(1);
   const [loadingAll, setLoadingAll] = useState(true);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     adminApi.getStats().then((res) => setStats(res.data)).finally(() => setLoading(false));
@@ -127,6 +146,38 @@ export default function Overview() {
     loadAllTasks(page);
   };
 
+  const handleDeleteTask = useCallback(async (taskId: string) => {
+    try {
+      await adminApi.deleteTask(taskId);
+      // 刷新列表
+      loadAllTasks(allPage);
+      loadActiveTasks();
+      // 刷新统计
+      adminApi.getStats().then((res) => setStats(res.data));
+    } catch (err) {
+      console.error('删除任务失败:', err);
+      alert('删除任务失败，请稍后重试');
+    } finally {
+      setDeletingId(null);
+    }
+  }, [allPage, loadAllTasks, loadActiveTasks]);
+
+  const handleCancelTask = useCallback(async (taskId: string) => {
+    try {
+      await adminApi.cancelTask(taskId);
+      // 立即更新本地状态，显示"正在停止..."
+      setActiveTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, cancel_requested: true, progress_message: '正在等待当前阶段结束...' }
+          : t
+      ));
+    } catch (err) {
+      console.error('取消任务失败:', err);
+    } finally {
+      setCancellingId(null);
+    }
+  }, []);
+
   if (loading || !stats) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-muted-foreground" /></div>;
   }
@@ -140,9 +191,10 @@ export default function Overview() {
 
   const statusBars = [
     { label: '已完成', value: stats.completed_tasks, color: 'bg-success' },
-    { label: '等待中', value: stats.pending_tasks, color: 'bg-muted-foreground/40' },
     { label: '处理中', value: stats.processing_tasks, color: 'bg-warning' },
+    { label: '等待中', value: stats.pending_tasks, color: 'bg-muted-foreground/40' },
     { label: '失败', value: stats.failed_tasks, color: 'bg-destructive' },
+    { label: '已取消', value: stats.cancelled_tasks, color: 'bg-purple-500/40' },
   ];
 
   const totalPages = allTasks ? Math.ceil(allTasks.total / PAGE_SIZE) : 0;
@@ -224,7 +276,31 @@ export default function Overview() {
                         <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                         <span className="text-sm font-medium truncate" title={task.title}>{task.title}</span>
                       </div>
-                      <StatusBadgeIcon status={task.status} />
+                      <div className="flex items-center gap-2">
+                        <StatusBadgeIcon status={task.status} />
+                        {task.status === 'processing' && !task.cancel_requested && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive border-destructive/30 hover:bg-destructive/10 h-7 text-xs gap-1"
+                            onClick={() => setCancellingId(task.id)}
+                            disabled={cancellingId === task.id}
+                          >
+                            {cancellingId === task.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Ban className="w-3 h-3" />
+                            )}
+                            {cancellingId === task.id ? '取消中...' : '停止'}
+                          </Button>
+                        )}
+                        {task.status === 'processing' && task.cancel_requested && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            正在停止...
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1" title="Whisper 模型">
@@ -255,16 +331,21 @@ export default function Overview() {
                       )}
                     </div>
                     {task.status === 'processing' && task.progress_message && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {task.progress_message}
+                      <p className="text-xs truncate flex items-center gap-1">
+                        {task.cancel_requested && (
+                          <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                        )}
+                        <span>{task.progress_message}</span>
                       </p>
                     )}
                     {task.status === 'processing' && (
                       <div className="space-y-1">
                         <Progress value={task.progress * 100} className="h-1.5" />
-                        <p className="text-xs text-muted-foreground text-right">
-                          {Math.round(task.progress * 100)}%
-                        </p>
+                        <div className="flex items-center justify-end">
+                          <p className="text-xs text-muted-foreground">
+                            {Math.round(task.progress * 100)}%
+                          </p>
+                        </div>
                       </div>
                     )}
                   </CardContent>
@@ -302,14 +383,16 @@ export default function Overview() {
           ) : (
             <>
               {/* 表头（桌面端可见） */}
-              <div className="hidden md:grid grid-cols-[75px_1.5fr_0.8fr_1fr_0.7fr_1fr_0.8fr] gap-4 px-6 py-3 text-xs text-muted-foreground border-b border-border/50 font-medium">
+              <div className="hidden md:grid grid-cols-[75px_1.2fr_0.7fr_0.8fr_0.6fr_0.6fr_0.7fr_0.6fr_60px] gap-4 px-6 py-3 text-xs text-muted-foreground border-b border-border/50 font-medium">
                 <span>状态</span>
                 <span>文件名</span>
                 <span>提交者</span>
                 <span>提交时间</span>
+                <span>文件大小</span>
                 <span>Whisper</span>
                 <span>LLM</span>
                 <span>耗时</span>
+                <span>操作</span>
               </div>
 
               {/* 任务行 */}
@@ -317,7 +400,7 @@ export default function Overview() {
                 {allTasks.tasks.map((task) => (
                   <div key={task.id} className="px-6 py-3 hover:bg-muted/40 transition-colors">
                     {/* 桌面端 */}
-                    <div className="hidden md:grid grid-cols-[75px_1.5fr_0.8fr_1fr_0.7fr_1fr_0.8fr] gap-4 items-center">
+                    <div className="hidden md:grid grid-cols-[75px_1.2fr_0.7fr_0.8fr_0.6fr_0.6fr_0.7fr_0.6fr_60px] gap-4 items-center">
                       <StatusBadgeIcon status={task.status} />
                       <div className="flex items-center gap-1.5 min-w-0">
                         <SourceTypeIcon source_type={task.source_type} />
@@ -329,11 +412,21 @@ export default function Overview() {
                         {task.username || <span className="text-muted-foreground/60">游客</span>}
                       </span>
                       <span className="text-sm text-muted-foreground truncate" title={formatTime(task.created_at)}>{formatTime(task.created_at)}</span>
+                      <span className="text-sm text-muted-foreground truncate" title={formatFileSize(task.file_size)}>{formatFileSize(task.file_size)}</span>
                       <span className="text-sm text-muted-foreground truncate" title={task.whisper_model}>{task.whisper_model}</span>
                       <span className="text-sm text-muted-foreground truncate" title={task.translate_llm_model || '-'}>
                         {task.translate_llm_model || <span className="text-muted-foreground/60">-</span>}
                       </span>
                       <span className="text-sm text-muted-foreground truncate" title={getTaskDuration(task)}>{getTaskDuration(task)}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                        title="删除任务"
+                        onClick={() => setDeletingId(task.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
 
                     {/* 移动端 */}
@@ -343,7 +436,18 @@ export default function Overview() {
                           <SourceTypeIcon source_type={task.source_type} />
                           <span className="text-sm font-medium truncate">{task.title}</span>
                         </div>
-                        <StatusBadgeIcon status={task.status} />
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            title="删除任务"
+                            onClick={() => setDeletingId(task.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <StatusBadgeIcon status={task.status} />
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -353,6 +457,10 @@ export default function Overview() {
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {formatTime(task.created_at)}
+                        </span>
+                        <span className="flex items-center gap-1" title={formatFileSize(task.file_size)}>
+                          <HardDrive className="w-3 h-3" />
+                          {formatFileSize(task.file_size)}
                         </span>
                         <span className="flex items-center gap-1">
                           <Cpu className="w-3 h-3" />
@@ -412,6 +520,52 @@ export default function Overview() {
           )}
         </CardContent>
       </Card>
+
+      {/* 取消任务确认弹窗 */}
+      <Dialog open={cancellingId !== null} onOpenChange={(open) => !open && setCancellingId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认停止任务</DialogTitle>
+            <DialogDescription>
+              停止后，任务将被标记为"已取消"且无法继续执行。此操作不可撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancellingId(null)}>
+              返回
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => cancellingId && handleCancelTask(cancellingId)}
+            >
+              确认停止
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 删除任务确认弹窗 */}
+      <Dialog open={deletingId !== null} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认删除任务</DialogTitle>
+            <DialogDescription>
+              删除后，任务记录及所有关联的媒体文件和输出文件将被永久删除，此操作不可撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingId(null)}>
+              返回
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deletingId && handleDeleteTask(deletingId)}
+            >
+              确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

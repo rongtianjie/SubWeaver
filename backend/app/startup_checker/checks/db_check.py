@@ -37,6 +37,6 @@ async def check_database() -> CheckResult:
                 "  1. Docker 方式: docker compose up -d db\n"
                 "  2. 原生部署: 确认 postgresql 服务运行中\n"
                 "  3. 检查环境变量 DATABASE_URL 是否正确配置\n"
-                "  默认连接: postgresql+asyncpg://whisper:whisper_secret@localhost:5432/whisper_platform"
+                "  默认连接: postgresql+asyncpg://subweaver:subweaver_secret@localhost:5432/subweaver"
             ),
         )

@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="frontend/public/hero-banner.png" alt="Auto Subtitle Generator — Banner" width="100%">
+  <img src="frontend/public/hero-banner.png" alt="SubWeaver — Banner" width="100%">
 </p>
 
-<h1 align="center">Auto Subtitle Generator</h1>
+<h1 align="center">SubWeaver</h1>
 
 <p align="center">
   <strong>A web-based audio/video transcription and subtitle generation service powered by OpenAI Whisper, featuring multi-language translation, online video downloading, user authentication, task queue management, and persistent log viewer.</strong>
@@ -21,7 +21,7 @@
 
 ## Overview
 
-Auto Subtitle Generator is a modern, full-stack web application that leverages OpenAI Whisper to automatically transcribe speech from audio and video files into text and subtitles. It supports file uploads and online video URLs (YouTube, etc.), generates multiple output formats (TXT, SRT, bilingual SRT), and translates subtitles into various languages via an OpenAI-compatible LLM API.
+SubWeaver is a modern, full-stack web application that leverages OpenAI Whisper to automatically transcribe speech from audio and video files into text and subtitles. It supports file uploads and online video URLs (YouTube, etc.), generates multiple output formats (TXT, SRT, bilingual SRT), and translates subtitles into various languages via an OpenAI-compatible LLM API.
 
 Built with FastAPI + React + PostgreSQL, it features a clean dashboard, real-time progress streaming via SSE, user authentication, admin panel, persistent logging, and Docker Compose deployment for easy setup.
 

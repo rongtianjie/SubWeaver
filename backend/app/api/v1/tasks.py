@@ -38,6 +38,7 @@ def _task_to_response(task: Task) -> TaskResponse:
         queue_position=task.queue_position,
         estimated_seconds=task.estimated_seconds,
         error_message=task.error_message,
+        cancel_requested=task.cancel_requested,
         created_at=str(task.created_at),
         started_at=str(task.started_at) if task.started_at else None,
         completed_at=str(task.completed_at) if task.completed_at else None,

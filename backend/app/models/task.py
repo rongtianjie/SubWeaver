@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Text, Float, Integer, DateTime, ForeignKey, Index, func
+from sqlalchemy import Boolean, String, Text, Float, Integer, DateTime, ForeignKey, Index, func
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -34,7 +34,7 @@ class Task(Base):
     # 状态与进度
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending", index=True
-    )  # pending / queued / processing / completed / failed
+    )  # pending / queued / processing / completed / failed / cancelled
     progress: Mapped[float] = mapped_column(Float, default=0.0)
     progress_message: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
@@ -45,9 +45,13 @@ class Task(Base):
     # 错误信息
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # 取消请求标记
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # 时间戳
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # 关系

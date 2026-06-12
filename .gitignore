@@ -32,3 +32,4 @@ build/
 .pytest_cache/
 htmlcov/
 .coverage*
+*.mp4

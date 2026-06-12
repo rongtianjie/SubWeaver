@@ -1,4 +1,4 @@
-import { Clock, CheckCircle2, XCircle, Loader2, Timer } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, Loader2, Timer, Ban } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Task } from '@/types';
 
@@ -8,6 +8,7 @@ const statusConfig: Record<Task['status'], { label: string; variant: 'default' |
   processing: { label: '处理中', variant: 'warning', icon: <Loader2 className="w-3 h-3 animate-spin" /> },
   completed: { label: '已完成', variant: 'success', icon: <CheckCircle2 className="w-3 h-3" /> },
   failed: { label: '失败', variant: 'destructive', icon: <XCircle className="w-3 h-3" /> },
+  cancelled: { label: '已取消', variant: 'secondary', icon: <Ban className="w-3 h-3" /> },
 };
 
 interface TaskStatusBadgeProps {

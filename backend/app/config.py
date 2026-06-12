@@ -8,14 +8,14 @@ class Settings(BaseSettings):
     model_config = ConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # 应用
-    APP_NAME: str = "Whisper Platform"
+    APP_NAME: str = "SubWeaver"
     DEBUG: bool = False
     SECRET_KEY: str = "change-me-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # 数据库
-    DATABASE_URL: str = "postgresql+asyncpg://whisper:whisper_secret@localhost:5432/whisper_platform"
+    DATABASE_URL: str = "postgresql+asyncpg://subweaver:subweaver_secret@localhost:5432/subweaver"
 
     # 存储
     STORAGE_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "storage")

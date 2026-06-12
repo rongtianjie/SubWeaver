@@ -1,6 +1,6 @@
 # 通用后端环境变量
 x-backend-env: &backend-env
-  DATABASE_URL: postgresql+asyncpg://whisper:${DB_PASSWORD:-whisper_secret}@db:5432/whisper_platform
+  DATABASE_URL: postgresql+asyncpg://subweaver:${DB_PASSWORD:-subweaver_secret}@db:5432/subweaver
   TZ: Asia/Shanghai
   LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8000/v1}
   LLM_API_KEY: ${LLM_API_KEY:-1234}
@@ -17,15 +17,15 @@ services:
     image: postgres:16-alpine
     restart: always
     environment:
-      POSTGRES_DB: whisper_platform
-      POSTGRES_USER: whisper
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-whisper_secret}
+      POSTGRES_DB: subweaver
+      POSTGRES_USER: subweaver
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-subweaver_secret}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U whisper -d whisper_platform"]
+      test: ["CMD-SHELL", "pg_isready -U subweaver -d subweaver"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -52,42 +52,70 @@ class Worker:
         task_id = task.id
         logger.info(f"开始处理任务: {task_id} ({task.title})")
 
+        audio_path = None
+
         try:
             async with async_session_factory() as db:
                 result = await db.execute(select(Task).where(Task.id == task_id))
                 t = result.scalar_one()
+                if t.cancel_requested or t.status == "cancelled":
+                    logger.info(f"任务 {task_id} 在开始处理前已被取消")
+                    return
                 t.status = "processing"
                 t.started_at = __import__("datetime").datetime.now().astimezone()
                 await db.commit()
 
-            # Step 1: 获取输入源 (0% → 10%)
-            await self._update_progress(task_id, 0.05, "正在准备输入文件...")
-            input_path = await self._get_input(task)
+            try:
+                # Step 1: 获取输入源 (0% → 10%)
+                await self._update_progress(task_id, 0.05, "正在准备输入文件...")
+                input_path = await self._get_input(task)
 
-            # Step 2: 提取音频 (10% → 20%)
-            await self._update_progress(task_id, 0.1, "正在提取音频...")
-            audio_path = self._extract_audio(input_path, task_id)
+                if await self._is_cancelled(task_id):
+                    raise asyncio.CancelledError("任务已被取消")
 
-            # Step 3: Whisper 转录 (20% → 60%)
-            await self._update_progress(task_id, 0.2, "正在进行语音识别...")
-            model = whisper_runner.get_model(task.whisper_model, settings.WHISPER_MODEL_DIR)
-            result = model.transcribe(audio_path, language=None)
+                # Step 2: 提取音频 (10% → 20%)
+                await self._update_progress(task_id, 0.1, "正在提取音频...")
+                audio_path = self._extract_audio(input_path, task_id)
 
-            # Step 4: 生成输出文件 (60% → 70%)
-            await self._update_progress(task_id, 0.6, "正在生成输出文件...")
-            output_files = await self._generate_outputs(result, task)
+                if await self._is_cancelled(task_id):
+                    raise asyncio.CancelledError("任务已被取消")
 
-            # Step 5: 翻译 (70% → 95%)
-            if task.translate_target_langs and len(task.translate_target_langs) > 0:
-                await self._update_progress(task_id, 0.7, "正在进行翻译...")
-                await self._translate_outputs(task, output_files)
+                # Step 3: Whisper 转录 (20% → 60%)
+                await self._update_progress(task_id, 0.2, "正在进行语音识别...")
+                model = whisper_runner.get_model(task.whisper_model, settings.WHISPER_MODEL_DIR)
+                result = model.transcribe(audio_path, language=None)
 
-            # Step 6: 清理临时文件
-            self._cleanup_temp(task_id, audio_path)
+                if await self._is_cancelled(task_id):
+                    raise asyncio.CancelledError("任务已被取消")
 
-            # 标记完成
-            await self._complete_task(task_id)
-            logger.success(f"任务完成: {task_id} ({task.title})")
+                # Step 4: 生成输出文件 (60% → 70%)
+                await self._update_progress(task_id, 0.6, "正在生成输出文件...")
+                output_files = await self._generate_outputs(result, task)
+
+                if await self._is_cancelled(task_id):
+                    raise asyncio.CancelledError("任务已被取消")
+
+                # Step 5: 翻译 (70% → 95%)
+                if task.translate_target_langs and len(task.translate_target_langs) > 0:
+                    await self._update_progress(task_id, 0.7, "正在进行翻译...")
+                    await self._translate_outputs(task, output_files)
+
+                if await self._is_cancelled(task_id):
+                    raise asyncio.CancelledError("任务已被取消")
+
+                # Step 6: 清理临时文件
+                self._cleanup_temp(task_id, audio_path)
+                audio_path = None
+
+                # 标记完成
+                await self._complete_task(task_id)
+                logger.success(f"任务完成: {task_id} ({task.title})")
+
+            except asyncio.CancelledError:
+                logger.warning(f"任务已被取消: {task_id} ({task.title})")
+                if audio_path and os.path.exists(audio_path):
+                    os.remove(audio_path)
+                await self._cancel_task(task_id)
 
         except Exception as e:
             logger.error(f"任务失败: {task_id}: {e}")
@@ -188,6 +216,31 @@ class Worker:
         """清理临时文件"""
         if os.path.exists(audio_path):
             os.remove(audio_path)
+
+    async def _is_cancelled(self, task_id: UUID) -> bool:
+        """检查任务是否已被请求取消"""
+        async with async_session_factory() as db:
+            result = await db.execute(select(Task.cancel_requested).where(Task.id == task_id))
+            row = result.scalar_one_or_none()
+            return bool(row)
+
+    async def _cancel_task(self, task_id: UUID):
+        """标记任务为已取消状态"""
+        import datetime
+        async with async_session_factory() as db:
+            await db.execute(
+                update(Task)
+                .where(Task.id == task_id)
+                .values(
+                    status="cancelled",
+                    cancel_requested=False,
+                    progress_message="任务已被管理员取消",
+                    cancelled_at=datetime.datetime.now().astimezone(),
+                )
+            )
+            await db.commit()
+            await task_queue.update_queue_positions(db)
+            await db.commit()
 
     async def _update_progress(self, task_id: UUID, progress: float, message: str):
         """更新任务进度"""

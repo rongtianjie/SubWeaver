@@ -86,6 +86,10 @@ export const adminApi = {
 
   retryTask: (id: string) => api.put(`/admin/tasks/${id}/retry`),
 
+  cancelTask: (id: string) => api.put(`/admin/tasks/${id}/cancel`),
+
+  deleteTask: (id: string) => api.delete(`/admin/tasks/${id}`),
+
   listUsers: () => api.get('/admin/users'),
 
   updateUserRole: (userId: string, role: string) =>

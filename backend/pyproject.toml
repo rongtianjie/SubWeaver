@@ -1,5 +1,5 @@
 [project]
-name = "whisper-platform"
+name = "subweaver"
 version = "1.0.0"
 description = "B/S 架构音视频转文字/字幕服务平台"
 requires-python = ">=3.11"

@@ -29,6 +29,7 @@ class TaskResponse(BaseModel):
     queue_position: Optional[int] = None
     estimated_seconds: Optional[int] = None
     error_message: Optional[str] = None
+    cancel_requested: bool = False
     created_at: str
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
