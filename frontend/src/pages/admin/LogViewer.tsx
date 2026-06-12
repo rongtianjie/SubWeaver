@@ -7,6 +7,28 @@ import { Loader2 } from 'lucide-react';
 import type { LogFileInfo, LogContent } from '@/types';
 
 export default function LogViewer() {
+  const levelColors: Record<string, string> = {
+    ERROR: 'text-red-600 dark:text-red-400',
+    CRITICAL: 'text-red-700 dark:text-red-500',
+    WARNING: 'text-amber-600 dark:text-amber-400',
+    INFO: '',
+    DEBUG: 'text-gray-500 dark:text-gray-400',
+  };
+
+  function renderLogLine(line: string, key: number) {
+    const m = line.match(/^([^|]+\|\s*)([A-Z]+)(\s*\|\s*.*)$/);
+    if (!m) {
+      return <div key={key} className="whitespace-nowrap">{line}</div>;
+    }
+    const [, prefix, level, suffix] = m;
+    const cls = levelColors[level];
+    return (
+      <div key={key} className="whitespace-nowrap">
+        {prefix}<span className={cls || ''}>{level}</span>{suffix}
+      </div>
+    );
+  }
+
   const [logFiles, setLogFiles] = useState<LogFileInfo[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [logContent, setLogContent] = useState<LogContent | null>(null);
@@ -130,9 +152,7 @@ export default function LogViewer() {
                 onScroll={handleScroll}
                 className="bg-foreground/5 text-foreground rounded-xl p-4 font-mono text-xs leading-relaxed overflow-x-auto overflow-y-auto max-h-[600px]"
               >
-                {logContent?.content?.split('\n').map((line, i) => (
-                  <div key={i} className="whitespace-nowrap">{line}</div>
-                ))}
+                {logContent?.content?.split('\n').map((line, i) => renderLogLine(line, i))}
                 {streamContent.map((chunk, i) => (
                   <span key={i} className="whitespace-nowrap">{chunk}</span>
                 ))}
