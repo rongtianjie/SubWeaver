@@ -93,6 +93,7 @@ The backend API is also available at `http://localhost:8765`. Full API documenta
 |---------|------|-------------|
 | **Frontend (Nginx)** | `80` | Web UI |
 | **Backend (FastAPI)** | `8765` | REST API + SSE streams |
+| **Worker** | — | Background task processor (Whisper transcription, translation) |
 | **Database (PostgreSQL)** | `5432` | Primary data store |
 
 ### Environment Variables
@@ -102,12 +103,15 @@ Copy `backend/.env.example` to `backend/.env` and adjust the following key varia
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SECRET_KEY` | `change-me-in-production` | JWT signing key (change in production!) |
-| `LLM_BASE_URL` | `http://host.docker.internal:1234/v1` | OpenAI-compatible LLM API endpoint for translation |
-| `LLM_API_KEY` | `lm-studio` | LLM API key |
+| `LLM_BASE_URL` | `http://host.docker.internal:8000/v1` | OpenAI-compatible LLM API endpoint for translation |
+| `LLM_API_KEY` | `1234` | LLM API key |
 | `LLM_MODEL` | (empty) | LLM model name |
-| `DB_PASSWORD` | `whisper_secret` | PostgreSQL password |
-| `MAX_FILE_SIZE_MB` | `500` | Maximum upload file size |
+| `DB_PASSWORD` | `subweaver_secret` | PostgreSQL password |
+| `MAX_FILE_SIZE_MB` | `500` | Maximum upload file size (can be increased up to 2048) |
 | `RETENTION_DAYS` | `30` | File retention period |
+| `GUEST_TASK_LIMIT` | `3` | Maximum tasks per guest (no login) |
+| `SUPPORTED_LANGUAGES` | `["zh","ja","ko","fr","de","es","ru","pt","ar","th","vi"]` | Supported translation languages |
+| `CORS_ORIGINS` | `["http://localhost:5173","http://localhost:80","http://localhost"]` | Allowed CORS origins for frontend |
 
 ---
 
@@ -118,6 +122,7 @@ Copy `backend/.env.example` to `backend/.env` and adjust the following key varia
 | `POST` | `/api/v1/auth/register` | Register a new user | No |
 | `POST` | `/api/v1/auth/login` | Login | No |
 | `POST` | `/api/v1/auth/refresh` | Refresh access token | Refresh token |
+| `GET` | `/api/v1/auth/me` | Get current user info | JWT |
 | `GET` | `/api/v1/auth/admin-exists` | Check if an admin exists in the system | No |
 | `POST` | `/api/v1/auth/register-admin` | Register the initial admin (only when none exists) | No |
 | `POST` | `/api/v1/tasks` | Create a transcription task | Optional (guest) |
@@ -129,10 +134,15 @@ Copy `backend/.env.example` to `backend/.env` and adjust the following key varia
 | `GET` | `/api/v1/tasks/{id}/outputs/{oid}/download` | Download output file | No |
 | `GET` | `/api/v1/tasks/queue` | Get queue status | No |
 | `GET` | `/api/v1/files` | List uploaded files | JWT |
-| `GET` | `/api/v1/health` | Health check | No |
+| `DELETE` | `/api/v1/files/{filename}` | Delete an uploaded file | JWT |
+| `GET` | `/api/v1/health` | Basic health check | No |
+| `GET` | `/api/v1/health/ready` | Readiness check with all services | No |
 | `GET` | `/api/v1/admin/stats` | Platform statistics | Admin |
-| `GET` | `/api/v1/admin/health` | Detailed health check | Admin |
+| `GET` | `/api/v1/admin/health` | Detailed health check of all subsystems | Admin |
 | `GET` | `/api/v1/admin/tasks` | List all tasks | Admin |
+| `DELETE` | `/api/v1/admin/tasks/{id}` | Delete any task | Admin |
+| `PUT` | `/api/v1/admin/tasks/{id}/cancel` | Cancel a queued/processing task | Admin |
+| `PUT` | `/api/v1/admin/tasks/{id}/retry` | Retry a failed task | Admin |
 | `GET` | `/api/v1/admin/users` | List all users | Admin |
 | `PUT` | `/api/v1/admin/users/{id}/role` | Update user role | Admin |
 | `GET` | `/api/v1/admin/config` | Get system config | Admin |
@@ -181,7 +191,7 @@ Administrators can view logs directly from the web UI via the **System Logs** ta
 
 ## Testing
 
-The project includes 81 test cases across 9 modules with comprehensive coverage:
+The project includes 82 test cases across 8 test modules with comprehensive coverage:
 
 ```bash
 cd backend
@@ -232,7 +242,9 @@ uv run pytest --cov=app --cov-report=html
 │   └── public/              # Static assets
 ├── storage/                 # File storage (uploads, outputs, logs)
 ├── docker-compose.yml       # Production deployment
-└── docker-compose.dev.yml   # Development database
+├── docker-compose.dev.yml   # Development database
+├── run_worker.py            # Worker process entrypoint (used by Worker container)
+└── backend/.env.example     # Example environment variables copy
 ```
 
 ---
