@@ -32,14 +32,16 @@ Built with FastAPI + React + PostgreSQL, it features a clean dashboard, real-tim
 ### 🎯 Core Capabilities
 - **Multi-source input** — Upload local audio/video files or provide an online video URL (YouTube, etc.)
 - **AI-powered transcription** — Multiple Whisper model sizes (`tiny`, `base`, `small`, `medium`, `large`) to balance speed and accuracy
+- **Whisper model management** — View download status, download, and delete Whisper models directly from the web UI
 - **Flexible output formats** — Plain text (TXT), standard subtitles (SRT), bilingual subtitles (SRT with original + translation)
 - **Multi-language translation** — Translate subtitles into 11+ languages via OpenAI-compatible LLM (Chinese, Japanese, Korean, French, German, Spanish, Russian, Portuguese, Arabic, Thai, Vietnamese, and more)
 - **Real-time progress** — Server-Sent Events (SSE) for live task progress updates
 
 ### 🛠 Platform Features
-- **User authentication** — Register, login, JWT with access/refresh tokens
+- **User authentication** — Register, login, JWT with access/refresh tokens, "Remember Me" and password saving support
+- **Initial admin setup** — Guided first-run setup page at `/admin/setup` to create the initial administrator
 - **Role-based access** — User and Admin roles with separate interfaces
-- **Admin dashboard** — Task management, user management, system configuration, health checks, statistics
+- **Admin dashboard** — Task management, user management, system configuration, health checks, statistics, LLM connection testing, and model list fetching
 - **Guest mode** — Create transcription tasks without registration (limited quota)
 - **Sequential task queue** — Fair queue with estimated wait times, real-time position updates
 - **Health check system** — Automatic startup verification of database, ffmpeg, Whisper model, and LLM connection
@@ -77,7 +79,7 @@ cp backend/.env.example backend/.env
 # Start all services
 docker compose up -d
 
-# Open http://localhost in your browser
+# Open http://localhost in your browser (frontend served on port 80, backend on port 8765)
 ```
 
 ### Manual Setup
@@ -131,6 +133,8 @@ Open http://localhost:5173 in your browser.
 | `POST` | `/api/v1/auth/register` | Register a new user | No |
 | `POST` | `/api/v1/auth/login` | Login | No |
 | `POST` | `/api/v1/auth/refresh` | Refresh access token | Refresh token |
+| `GET` | `/api/v1/auth/admin-exists` | Check if an admin exists in the system | No |
+| `POST` | `/api/v1/auth/register-admin` | Register the initial admin (only when none exists) | No |
 | `POST` | `/api/v1/tasks` | Create a transcription task | Optional (guest) |
 | `GET` | `/api/v1/tasks` | List user tasks | JWT |
 | `GET` | `/api/v1/tasks/{id}` | Get task details | No |
@@ -148,6 +152,12 @@ Open http://localhost:5173 in your browser.
 | `PUT` | `/api/v1/admin/users/{id}/role` | Update user role | Admin |
 | `GET` | `/api/v1/admin/config` | Get system config | Admin |
 | `PUT` | `/api/v1/admin/config/{key}` | Update system config | Admin |
+| `POST` | `/api/v1/admin/llm/test` | Test LLM connection and latency | Admin |
+| `POST` | `/api/v1/admin/llm/fetch-models` | Fetch available models from LLM backend | Admin |
+
+| `GET` | `/api/v1/models` | List all Whisper models with download status | No |
+| `POST` | `/api/v1/models/{name}/download` | Download a Whisper model | No |
+| `DELETE` | `/api/v1/models` | Delete all downloaded Whisper models | No |
 
 Full API documentation is available at `/docs` when the backend is running.
 
@@ -161,9 +171,9 @@ Configuration is managed via environment variables. Copy `backend/.env.example` 
 |----------|---------|-------------|
 | `SECRET_KEY` | `change-me-in-production` | JWT signing key |
 | `DATABASE_URL` | `postgresql+asyncpg://whisper:whisper_secret@localhost:5432/whisper_platform` | PostgreSQL connection |
-| `LLM_BASE_URL` | `http://localhost:1234/v1` | OpenAI-compatible LLM API endpoint |
-| `LLM_API_KEY` | `lm-studio` | LLM API key |
-| `LLM_MODEL` | `lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF` | LLM model name |
+| `LLM_BASE_URL` | `http://host.docker.internal:8000/v1` | OpenAI-compatible LLM API endpoint |
+| `LLM_API_KEY` | `1234` | LLM API key |
+| `LLM_MODEL` | (empty, auto-selected by backend) | LLM model name |
 | `MAX_FILE_SIZE_MB` | `500` | Maximum upload file size |
 | `RETENTION_DAYS` | `30` | File retention period |
 | `CORS_ORIGINS` | `["http://localhost:5173","http://localhost:80","http://localhost"]` | Allowed CORS origins |
