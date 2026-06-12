@@ -8,11 +8,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, Link, FileAudio, Loader2, CheckCircle2, DownloadCloud } from 'lucide-react';
 
 const MODELS = [
-  { value: 'tiny', label: 'Tiny (最快, 准确度最低)', speed: '⚡' },
-  { value: 'base', label: 'Base (快速)', speed: '⚡⚡' },
+  { value: 'tiny', label: 'Tiny (最快, 准确度最低)', speed: '⚡⚡⚡⚡⚡' },
+  { value: 'base', label: 'Base (快速)', speed: '⚡⚡⚡⚡' },
   { value: 'small', label: 'Small (推荐)', speed: '⚡⚡⚡' },
-  { value: 'medium', label: 'Medium (较慢, 更准确)', speed: '⚡⚡⚡⚡' },
-  { value: 'large', label: 'Large (最慢, 最准确)', speed: '⚡⚡⚡⚡⚡' },
+  { value: 'medium', label: 'Medium (较慢, 更准确)', speed: '⚡⚡' },
+  { value: 'large', label: 'Large (最慢, 最准确)', speed: '⚡' },
 ];
 
 const OUTPUT_FORMATS = [
