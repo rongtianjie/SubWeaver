@@ -1,3 +1,17 @@
+# 通用后端环境变量
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://whisper:${DB_PASSWORD:-whisper_secret}@db:5432/whisper_platform
+  TZ: Asia/Shanghai
+  LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8000/v1}
+  LLM_API_KEY: ${LLM_API_KEY:-1234}
+  LLM_MODEL: ${LLM_MODEL:-}
+  WHISPER_MODEL_DIR: /app/models
+  STORAGE_DIR: /app/storage
+  MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
+  RETENTION_DAYS: ${RETENTION_DAYS:-30}
+  SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+  CORS_ORIGINS: ${CORS_ORIGINS:-"[\"http://localhost:80\",\"http://localhost\"]"}
+
 services:
   db:
     image: postgres:16-alpine
@@ -23,22 +37,25 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql+asyncpg://whisper:${DB_PASSWORD:-whisper_secret}@db:5432/whisper_platform
-      TZ: Asia/Shanghai
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:8000/v1}
-      LLM_API_KEY: ${LLM_API_KEY:-1234}
-      LLM_MODEL: ${LLM_MODEL:-}
-      WHISPER_MODEL_DIR: /app/models
-      STORAGE_DIR: /app/storage
-      MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-500}
-      RETENTION_DAYS: ${RETENTION_DAYS:-30}
-      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
-      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:80","http://localhost"]}
+      <<: *backend-env
     volumes:
       - models:/app/models
       - storage:/app/storage
     ports:
       - "8765:8000"
+
+  worker:
+    build: ./backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+    volumes:
+      - models:/app/models
+      - storage:/app/storage
+    command: python run_worker.py
 
   frontend:
     build: ./frontend

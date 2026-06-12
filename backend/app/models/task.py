@@ -24,6 +24,9 @@ class Task(Base):
     # Whisper 配置
     whisper_model: Mapped[str] = mapped_column(String(20), nullable=False, default="base")
 
+    # 翻译 LLM 配置
+    translate_llm_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     # 输出配置
     output_formats: Mapped[dict] = mapped_column(JSONB, nullable=False, default=list)  # ["txt", "srt", "bilingual_srt"]
     translate_target_langs: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # ["zh", "ja", ...]

@@ -18,7 +18,7 @@ class Translator:
         results = {}
         for lang in target_langs:
             logger.info(f"翻译字幕到 {lang}...")
-            translated = translate_subtitles(subtitles, client)
+            translated = translate_subtitles(subtitles, client, model)
             output_dir = os.path.dirname(srt_path)
             lang_path = os.path.join(output_dir, f"subtitles_{lang}.srt")
             write_srt_file(lang_path, translated)

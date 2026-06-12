@@ -20,9 +20,9 @@ def write_srt_file(file_path, subtitles):
     with open(file_path, 'w', encoding='utf-8') as file:
         file.write(srt.compose(subtitles))
         
-def translate_to_chinese(text, client):
+def translate_to_chinese(text, client, model):
     completion = client.chat.completions.create(
-            model="lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
+            model=model,
             messages=[
                 # {"role": "system", "content": "You are a professional translator. You translate a film script from English to Simplified Chinese. You will only reply the translated text."},
                 {"role": "user", "content": f"Please translate the following English subtitles from a movie or video into Chinese and only provide the translated text: {text}"},
@@ -32,14 +32,14 @@ def translate_to_chinese(text, client):
         )
     return completion.choices[0].message.content
 
-def translate_subtitles(subtitles, client):
+def translate_subtitles(subtitles, client, model):
     translated_subtitles = []
     total = len(subtitles)
     for i, subtitle in enumerate(subtitles):
         if i > 0 and i % 10 == 0:
             logger.info(f"翻译进度: {i}/{total}")
         english_text = subtitle.content
-        chinese_translation = translate_to_chinese(english_text, client)
+        chinese_translation = translate_to_chinese(english_text, client, model)
         # print(f"Translating: {english_text} -> {chinese_translation}")
         
         # Combine English and Chinese in the content

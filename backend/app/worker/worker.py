@@ -75,7 +75,7 @@ class Worker:
 
             # Step 4: 生成输出文件 (60% → 70%)
             await self._update_progress(task_id, 0.6, "正在生成输出文件...")
-            output_files = self._generate_outputs(result, task)
+            output_files = await self._generate_outputs(result, task)
 
             # Step 5: 翻译 (70% → 95%)
             if task.translate_target_langs and len(task.translate_target_langs) > 0:
@@ -114,7 +114,7 @@ class Worker:
         subprocess.run(command, check=True, capture_output=True)
         return audio_path
 
-    def _generate_outputs(self, whisper_result: dict, task: Task) -> dict:
+    async def _generate_outputs(self, whisper_result: dict, task: Task) -> dict:
         """生成各种格式的输出文件"""
         from app.util import read_srt_file, write_srt_file
 
@@ -128,7 +128,7 @@ class Worker:
             with open(txt_path, "w", encoding="utf-8") as f:
                 f.write(whisper_result["text"])
             output_files["txt"] = txt_path
-            self._save_output_record(task.id, "txt", None, txt_path)
+            await self._save_output_record(task.id, "txt", None, txt_path)
 
         # 生成 SRT
         if "srt" in formats or "bilingual_srt" in formats:
@@ -136,7 +136,7 @@ class Worker:
             srt_path = os.path.join(output_dir, "subtitles.srt")
             writer(whisper_result, "subtitles.srt")
             output_files["srt"] = os.path.join(output_dir, "subtitles.srt")
-            self._save_output_record(task.id, "srt", None, os.path.join(output_dir, "subtitles.srt"))
+            await self._save_output_record(task.id, "srt", None, os.path.join(output_dir, "subtitles.srt"))
 
         return output_files
 
@@ -154,37 +154,35 @@ class Worker:
             api_key = await get_config_value(db, "llm_api_key", settings.LLM_API_KEY)
             model = await get_config_value(db, "llm_model", settings.LLM_MODEL)
 
+        # 将翻译 LLM 模型保存到任务记录
+        async with async_session_factory() as db:
+            await db.execute(
+                update(Task)
+                .where(Task.id == task.id)
+                .values(translate_llm_model=model)
+            )
+            await db.commit()
+
         translated = await translator.translate_srt(srt_path, task.translate_target_langs, base_url, api_key, model)
         for lang, lang_path in translated.items():
-            self._save_output_record(task.id, "bilingual_srt", f"en-{lang}", lang_path)
+            await self._save_output_record(task.id, "bilingual_srt", f"en-{lang}", lang_path)
 
-    def _save_output_record(self, task_id: UUID, format_type: str, language_pair: str | None, file_path: str):
+    async def _save_output_record(self, task_id: UUID, format_type: str, language_pair: str | None, file_path: str):
         """保存输出文件记录到数据库"""
-        import asyncio
         from app.database import async_session_factory
         from app.models.task_output import TaskOutput
 
-        # 使用 asyncio 创建新事件循环（如果在同步上下文中）
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        async def _save():
-            async with async_session_factory() as db:
-                file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
-                output = TaskOutput(
-                    task_id=task_id,
-                    format_type=format_type,
-                    language_pair=language_pair,
-                    file_path=file_path,
-                    file_size=file_size,
-                )
-                db.add(output)
-                await db.commit()
-
-        loop.run_until_complete(_save())
+        async with async_session_factory() as db:
+            file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+            output = TaskOutput(
+                task_id=task_id,
+                format_type=format_type,
+                language_pair=language_pair,
+                file_path=file_path,
+                file_size=file_size,
+            )
+            db.add(output)
+            await db.commit()
 
     def _cleanup_temp(self, task_id: UUID, audio_path: str):
         """清理临时文件"""

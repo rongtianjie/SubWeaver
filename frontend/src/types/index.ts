@@ -1,11 +1,13 @@
 export interface Task {
   id: string
   user_id: string | null
+  username: string | null
   title: string
   source_type: "upload" | "url"
   source_url: string | null
   source_filename: string | null
   whisper_model: string
+  translate_llm_model: string | null
   output_formats: string[]
   translate_target_langs: string[] | null
   status: "pending" | "queued" | "processing" | "completed" | "failed"

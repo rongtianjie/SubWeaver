@@ -15,7 +15,6 @@ from app.startup_checker.checks.db_check import check_database
 from app.startup_checker.checks.ffmpeg_check import check_ffmpeg
 from app.startup_checker.checks.whisper_check import check_whisper_model
 from app.startup_checker.checks.llm_check import check_llm_connection
-from app.worker.worker import Worker
 from app.services.config_service import init_default_configs, get_config_value
 
 # 注册检查项
@@ -23,8 +22,6 @@ checker.register("数据库连接 (PostgreSQL)", check_database)
 checker.register("ffmpeg", check_ffmpeg)
 checker.register("Whisper 模型", check_whisper_model)
 checker.register("LLM 翻译接口", check_llm_connection)
-
-worker = Worker()
 
 APP_VERSION = "1.0.0"
 
@@ -91,12 +88,6 @@ async def lifespan(app: FastAPI):
     results = await checker.run_all()
     ok = checker.print_report(results)
 
-    # 启动 Worker（即使有非关键错误也启动）
-    if ok:
-        app.state.worker_task = asyncio.create_task(worker.run())
-    else:
-        logger.warning("  存在关键错误，Worker 未启动，请修复后重启服务")
-        logger.info("=" * 60)
 
     app.state._start_time = time.time()
     yield
@@ -105,15 +96,6 @@ async def lifespan(app: FastAPI):
     if hasattr(app.state, "_start_time"):
         uptime = time.time() - app.state._start_time
         logger.info(f"  服务已运行: {uptime:.0f} 秒")
-
-    await worker.stop()
-
-    if hasattr(app.state, "worker_task"):
-        app.state.worker_task.cancel()
-        try:
-            await app.state.worker_task
-        except asyncio.CancelledError:
-            pass
 
     logger.info("=" * 60)
     logger.info(f"  {settings.APP_NAME} v{APP_VERSION} 服务已关闭")

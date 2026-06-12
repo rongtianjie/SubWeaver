@@ -48,6 +48,7 @@ export default function Home() {
   const [modelStatus, setModelStatus] = useState<Record<string, boolean>>({});
   const [recentTasks, setRecentTasks] = useState<Task[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -103,9 +104,10 @@ export default function Home() {
       }
       const res = await taskApi.create(formData);
       window.location.href = `/tasks/${res.data.id}`;
-    } catch (err) {
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.message || '未知错误';
       console.error('创建任务失败:', err);
-      alert('创建任务失败，请重试');
+      alert(`创建任务失败: ${msg}`);
     } finally {
       setSubmitting(false);
     }
@@ -163,8 +165,35 @@ export default function Home() {
             </TabsList>
             <TabsContent value="upload" className="space-y-4">
               <div
-                className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all duration-200 group"
+                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 group ${
+                  isDragging
+                    ? 'border-primary bg-primary/10 scale-[1.02] shadow-lg'
+                    : 'border-border hover:border-primary/50 hover:bg-primary/5'
+                }`}
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDragging(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDragging(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDragging(false);
+                  const droppedFile = e.dataTransfer.files?.[0];
+                  if (droppedFile) {
+                    setFile(droppedFile);
+                  }
+                }}
               >
                 {file ? (
                   <div className="space-y-2">
@@ -178,8 +207,12 @@ export default function Home() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <div className="inline-flex p-3 rounded-2xl bg-muted group-hover:bg-primary/10 transition-colors">
-                      <Upload className="w-8 h-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <div className={`inline-flex p-3 rounded-2xl transition-colors ${
+                      isDragging ? 'bg-primary/20' : 'bg-muted group-hover:bg-primary/10'
+                    }`}>
+                      <Upload className={`w-8 h-8 transition-colors ${
+                        isDragging ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'
+                      }`} />
                     </div>
                     <p className="text-muted-foreground">点击或拖拽文件到此处</p>
                     <p className="text-xs text-muted-foreground/60">支持 mp4, avi, mkv, mov, wav, mp3 等格式</p>
@@ -223,7 +256,7 @@ export default function Home() {
                       key={m.value}
                       className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
                         model === m.value
-                          ? 'border-primary bg-primary/5 shadow-sm'
+                          ? 'border-primary bg-primary/10 text-primary shadow-sm'
                           : 'border-transparent bg-muted/50 hover:bg-muted hover:border-border'
                       }`}
                     >

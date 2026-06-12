@@ -22,6 +22,7 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
 
 from app.database import get_db
@@ -49,7 +50,7 @@ async def admin_list_tasks(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    query = select(Task)
+    query = select(Task).options(selectinload(Task.user))
     count_query = select(func.count(Task.id))
 
     if status:
@@ -71,10 +72,17 @@ async def admin_list_tasks(
                 "user_id": str(t.user_id) if t.user_id else None,
                 "title": t.title,
                 "source_type": t.source_type,
+                "source_filename": t.source_filename,
+                "source_url": t.source_url,
                 "status": t.status,
                 "progress": t.progress,
+                "progress_message": t.progress_message,
                 "whisper_model": t.whisper_model,
+                "translate_llm_model": t.translate_llm_model,
+                "username": t.user.username if t.user else None,
+                "error_message": t.error_message,
                 "created_at": str(t.created_at),
+                "started_at": str(t.started_at) if t.started_at else None,
                 "completed_at": str(t.completed_at) if t.completed_at else None,
             }
             for t in tasks
