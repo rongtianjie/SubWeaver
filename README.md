@@ -74,8 +74,8 @@ Built with FastAPI + React + PostgreSQL, it features a clean dashboard, real-tim
 git clone https://github.com/rongtianjie/Auto-subtitle-generator-based-on-whisper.git
 cd Auto-subtitle-generator-based-on-whisper
 
-# Copy environment configuration
-cp backend/.env.example backend/.env
+# Copy environment configuration (Docker Compose 读取根目录的 .env)
+cp backend/.env.example .env
 
 # Start all services
 docker compose up -d
