@@ -35,3 +35,15 @@ class HealthCheckItem(BaseModel):
     status: bool
     severity: str  # error / warning / info
     message: str
+
+
+class LogFileInfo(BaseModel):
+    filename: str
+    size_bytes: int
+    last_modified: str
+
+
+class LogContent(BaseModel):
+    filename: str
+    content: str
+    has_more: bool

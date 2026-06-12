@@ -63,3 +63,15 @@ export interface ModelInfo {
     error_message: string | null
   }
 }
+
+export interface LogFileInfo {
+  filename: string
+  size_bytes: number
+  last_modified: string
+}
+
+export interface LogContent {
+  filename: string
+  content: string
+  has_more: boolean
+}

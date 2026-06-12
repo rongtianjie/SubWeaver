@@ -2,7 +2,7 @@ import whisper
 from whisper.utils import get_writer
 from openai import OpenAI
 import srt
-from tqdm import tqdm 
+from loguru import logger
 import subprocess
 
 
@@ -34,7 +34,10 @@ def translate_to_chinese(text, client):
 
 def translate_subtitles(subtitles, client):
     translated_subtitles = []
-    for subtitle in tqdm(subtitles):
+    total = len(subtitles)
+    for i, subtitle in enumerate(subtitles):
+        if i > 0 and i % 10 == 0:
+            logger.info(f"翻译进度: {i}/{total}")
         english_text = subtitle.content
         chinese_translation = translate_to_chinese(english_text, client)
         # print(f"Translating: {english_text} -> {chinese_translation}")

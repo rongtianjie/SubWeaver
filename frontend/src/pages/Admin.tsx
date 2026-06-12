@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { adminApi, modelApi, authApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { Activity, Users, FileText, HardDrive, RefreshCw, Loader2, Download, CheckCircle2, XCircle, Cpu, Trash2, AlertCircle } from 'lucide-react';
-import type { ModelInfo } from '@/types';
+import type { ModelInfo, LogFileInfo, LogContent } from '@/types';
 
 interface Stats {
   total_tasks: number;
@@ -196,6 +196,7 @@ export default function Admin() {
           { key: 'config', label: '系统配置' },
           { key: 'models', label: '模型管理' },
           { key: 'llm', label: 'LLM 配置' },
+          { key: 'logs', label: '系统日志' },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -556,6 +557,8 @@ export default function Admin() {
           </CardContent>
         </Card>
       )}
+
+      {activeTab === 'logs' && <LogViewer />}
     </div>
   );
 }
@@ -608,6 +611,156 @@ function ConfigField({
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function LogViewer() {
+  const [logFiles, setLogFiles] = useState<LogFileInfo[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [logContent, setLogContent] = useState<LogContent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const [streamContent, setStreamContent] = useState<string[]>([]);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+
+  useEffect(() => {
+    adminApi.listLogFiles().then((res) => {
+      setLogFiles(res.data);
+      if (res.data.length > 0 && !selectedFile) {
+        setSelectedFile(res.data[0].filename);
+      }
+    }).finally(() => setLoading(false));
+  }, []);
+
+  // 选中文件时加载内容
+  useEffect(() => {
+    if (!selectedFile) return;
+    setLoadingContent(true);
+    setStreamContent([]);
+    setStreaming(false);
+    adminApi.getLogContent(selectedFile, 200)
+      .then((res) => setLogContent(res.data))
+      .finally(() => setLoadingContent(false));
+  }, [selectedFile]);
+
+  // SSE 实时日志
+  useEffect(() => {
+    if (!selectedFile || !streaming) return;
+    const es = new EventSource(adminApi.getLogStreamUrl(selectedFile));
+
+    es.addEventListener('log', (event) => {
+      const data = JSON.parse(event.data);
+      setStreamContent((prev) => [...prev, data.content]);
+    });
+
+    es.addEventListener('error', () => {
+      es.close();
+      setStreaming(false);
+    });
+
+    return () => es.close();
+  }, [selectedFile, streaming]);
+
+  // 自动滚动
+  useEffect(() => {
+    if (autoScroll && contentRef.current) {
+      contentRef.current.scrollTop = contentRef.current.scrollHeight;
+    }
+  }, [logContent, streamContent, autoScroll]);
+
+  const handleScroll = () => {
+    if (contentRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = contentRef.current;
+      setAutoScroll(scrollHeight - scrollTop - clientHeight < 50);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-4">
+      {/* 左侧文件列表 */}
+      <Card className="w-56 shrink-0">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">日志文件</CardTitle>
+        </CardHeader>
+        <CardContent className="p-2">
+          <div className="space-y-1">
+            {logFiles.map((f) => (
+              <button
+                key={f.filename}
+                onClick={() => { setSelectedFile(f.filename); setStreaming(false); }}
+                className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+                  selectedFile === f.filename
+                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    : 'hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                <div className="truncate">{f.filename}</div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  {(f.size_bytes / 1024).toFixed(1)} KB
+                </div>
+              </button>
+            ))}
+            {logFiles.length === 0 && (
+              <p className="text-sm text-gray-400 px-3 py-4 text-center">暂无日志文件</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 右侧日志内容 */}
+      <Card className="flex-1">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm">{selectedFile || '选择日志文件'}</CardTitle>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAutoScroll(!autoScroll)}
+                className={`px-2 py-1 text-xs rounded border transition ${
+                  autoScroll ? 'bg-blue-50 border-blue-200 text-blue-600' : 'text-gray-500'
+                }`}
+              >
+                自动滚动 {autoScroll ? 'ON' : 'OFF'}
+              </button>
+              <Button
+                size="sm"
+                variant={streaming ? 'default' : 'outline'}
+                onClick={() => setStreaming(!streaming)}
+              >
+                {streaming ? '停止实时' : '实时日志'}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loadingContent ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+            </div>
+          ) : (
+            <div
+              ref={contentRef}
+              onScroll={handleScroll}
+              className="bg-gray-900 text-gray-100 rounded-lg p-4 font-mono text-xs leading-relaxed overflow-auto max-h-[600px] whitespace-pre-wrap"
+            >
+              {logContent?.content}
+              {streamContent.map((chunk, i) => (
+                <span key={i}>{chunk}</span>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

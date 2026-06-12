@@ -14,16 +14,21 @@ class LlmFetchModelsRequest(BaseModel):
 
 import os
 from uuid import UUID
+import json
+import gzip
+from datetime import datetime
+from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+from sse_starlette.sse import EventSourceResponse
 
 from app.database import get_db
 from app.dependencies import require_admin
 from app.models.user import User
 from app.models.task import Task
-from app.schemas.admin import ConfigUpdate, ConfigResponse, AdminStats, UserRoleUpdate, HealthCheckItem
+from app.schemas.admin import ConfigUpdate, ConfigResponse, AdminStats, UserRoleUpdate, HealthCheckItem, LogFileInfo, LogContent
 from app.services.config_service import get_all_configs, set_config_value, get_config_value
 from app.config import settings
 from app.startup_checker.checker import checker
@@ -31,6 +36,7 @@ from app.startup_checker.checks.db_check import check_database
 from app.startup_checker.checks.ffmpeg_check import check_ffmpeg
 from app.startup_checker.checks.whisper_check import check_whisper_model
 from app.startup_checker.checks.llm_check import check_llm_connection
+from app.core.logging import LOG_DIR
 
 router = APIRouter(prefix="/admin", tags=["管理后台"])
 
@@ -280,3 +286,112 @@ async def admin_health(
         HealthCheckItem(name=r.name, status=r.status, severity=r.severity, message=r.message)
         for r in results if not isinstance(r, Exception)
     ]
+
+
+@router.get("/logs", response_model=list[LogFileInfo])
+async def list_log_files(
+    admin: User = Depends(require_admin),
+):
+    """列出日志目录下的所有日志文件"""
+    if not os.path.exists(LOG_DIR):
+        return []
+
+    files = []
+    for f in sorted(os.listdir(LOG_DIR)):
+        fpath = os.path.join(LOG_DIR, f)
+        if os.path.isfile(fpath) and (f.endswith(".log") or f.endswith(".log.gz")):
+            mtime = datetime.fromtimestamp(os.path.getmtime(fpath))
+            files.append(LogFileInfo(
+                filename=f,
+                size_bytes=os.path.getsize(fpath),
+                last_modified=mtime.isoformat(),
+            ))
+    # 按最后修改时间倒序
+    files.sort(key=lambda x: x.last_modified, reverse=True)
+    return files
+
+
+@router.get("/logs/{filename}", response_model=LogContent)
+async def read_log_file(
+    filename: str,
+    tail: int = Query(200, ge=10, le=5000, description="读取尾部行数"),
+    admin: User = Depends(require_admin),
+):
+    """读取指定日志文件的内容（支持 .gz 文件）"""
+    log_path = os.path.join(LOG_DIR, filename)
+
+    # 安全校验：防止路径穿越
+    real_path = os.path.realpath(log_path)
+    real_log_dir = os.path.realpath(LOG_DIR)
+    if not real_path.startswith(real_log_dir):
+        raise HTTPException(status_code=403, detail="不允许访问该文件")
+
+    if not os.path.exists(real_path):
+        raise HTTPException(status_code=404, detail="日志文件不存在")
+
+    try:
+        if filename.endswith(".gz"):
+            with gzip.open(real_path, "rt", encoding="utf-8") as f:
+                lines = f.readlines()
+        else:
+            with open(real_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+
+        total_lines = len(lines)
+        start = max(0, total_lines - tail)
+        content = "".join(lines[start:])
+
+        return LogContent(
+            filename=filename,
+            content=content,
+            has_more=start > 0,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取日志失败: {e}")
+
+
+@router.get("/logs/{filename}/stream")
+async def stream_log_file(
+    filename: str,
+    admin: User = Depends(require_admin),
+):
+    """SSE 实时推送日志文件新内容"""
+    import asyncio
+
+    log_path = os.path.join(LOG_DIR, filename)
+    real_path = os.path.realpath(log_path)
+    real_log_dir = os.path.realpath(LOG_DIR)
+    if not real_path.startswith(real_log_dir):
+        raise HTTPException(status_code=403, detail="不允许访问该文件")
+    if not os.path.exists(real_path):
+        raise HTTPException(status_code=404, detail="日志文件不存在")
+
+    async def event_generator() -> AsyncGenerator[dict, None]:
+        last_size = os.path.getsize(real_path)
+
+        # 先推送当前文件大小（供前端判断是否需要重新读取）
+        yield {"event": "init", "data": json.dumps({"size": last_size})}
+
+        while True:
+            await asyncio.sleep(1)
+            try:
+                current_size = os.path.getsize(real_path)
+                if current_size > last_size:
+                    if filename.endswith(".gz"):
+                        with gzip.open(real_path, "rt", encoding="utf-8") as f:
+                            f.seek(last_size)
+                            new_content = f.read()
+                    else:
+                        with open(real_path, "r", encoding="utf-8") as f:
+                            f.seek(last_size)
+                            new_content = f.read()
+
+                    if new_content:
+                        yield {"event": "log", "data": json.dumps({"content": new_content})}
+
+                    last_size = current_size
+            except Exception:
+                yield {"event": "error", "data": json.dumps({"message": "读取日志失败"})}
+                break
+
+    return EventSourceResponse(event_generator())

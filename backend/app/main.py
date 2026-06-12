@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from app.config import settings
+from app.core.logging import setup_logging
 from app.database import async_session_factory
 from app.services.config_service import init_default_configs
 from app.startup_checker.checker import checker
@@ -27,6 +28,9 @@ worker = Worker()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
+    # 初始化日志系统（最优先）
+    setup_logging()
+
     # 启动检查
     logger.info("正在执行系统环境检查...")
     results = await checker.run_all()

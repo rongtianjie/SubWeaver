@@ -105,6 +105,14 @@ export const adminApi = {
 
   fetchLlmModels: (data: { base_url: string; api_key: string }) =>
     api.post('/admin/llm/fetch-models', data),
+
+  listLogFiles: () => api.get('/admin/logs'),
+
+  getLogContent: (filename: string, tail?: number) =>
+    api.get(`/admin/logs/${encodeURIComponent(filename)}`, { params: { tail } }),
+
+  getLogStreamUrl: (filename: string) =>
+    `/api/v1/admin/logs/${encodeURIComponent(filename)}/stream`,
 };
 
 // ===== 模型管理 API =====

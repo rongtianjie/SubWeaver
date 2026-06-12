@@ -5,7 +5,7 @@
 <h1 align="center">Auto Subtitle Generator</h1>
 
 <p align="center">
-  <strong>A web-based audio/video transcription and subtitle generation service powered by OpenAI Whisper, featuring multi-language translation, online video downloading, user authentication, and task queue management.</strong>
+  <strong>A web-based audio/video transcription and subtitle generation service powered by OpenAI Whisper, featuring multi-language translation, online video downloading, user authentication, task queue management, and persistent log viewer.</strong>
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 Auto Subtitle Generator is a modern, full-stack web application that leverages OpenAI Whisper to automatically transcribe speech from audio and video files into text and subtitles. It supports file uploads and online video URLs (YouTube, etc.), generates multiple output formats (TXT, SRT, bilingual SRT), and translates subtitles into various languages via an OpenAI-compatible LLM API.
 
-Built with FastAPI + React + PostgreSQL, it features a clean dashboard, real-time progress streaming via SSE, user authentication, admin panel, and Docker Compose deployment for easy setup.
+Built with FastAPI + React + PostgreSQL, it features a clean dashboard, real-time progress streaming via SSE, user authentication, admin panel, persistent logging, and Docker Compose deployment for easy setup.
 
 ---
 
@@ -42,6 +42,7 @@ Built with FastAPI + React + PostgreSQL, it features a clean dashboard, real-tim
 - **Initial admin setup** — Guided first-run setup page at `/admin/setup` to create the initial administrator
 - **Role-based access** — User and Admin roles with separate interfaces
 - **Admin dashboard** — Task management, user management, system configuration, health checks, statistics, LLM connection testing, and model list fetching
+- **System log viewer** — Admin can view and stream real-time logs directly from the web UI
 - **Guest mode** — Create transcription tasks without registration (limited quota)
 - **Sequential task queue** — Fair queue with estimated wait times, real-time position updates
 - **Health check system** — Automatic startup verification of database, ffmpeg, Whisper model, and LLM connection
@@ -66,7 +67,7 @@ Built with FastAPI + React + PostgreSQL, it features a clean dashboard, real-tim
 
 ## Quick Start
 
-### Docker Compose (Recommended)
+### Docker Compose (Only Supported Method)
 
 ```bash
 # Clone the repository
@@ -79,50 +80,34 @@ cp backend/.env.example backend/.env
 # Start all services
 docker compose up -d
 
-# Open http://localhost in your browser (frontend served on port 80, backend on port 8765)
+# Open http://localhost in your browser
 ```
 
-### Manual Setup
+The backend API is also available at `http://localhost:8765`. Full API documentation is at `http://localhost:8765/docs`.
 
-#### Prerequisites
-- Python 3.11+ with [uv](https://docs.astral.sh/uv/)
-- Node.js 20+
-- PostgreSQL 16+
-- ffmpeg
+> **Note:** This project **only supports Docker Compose deployment**. Manual/native setup is no longer supported.
 
-#### Backend
+### Services
 
-```bash
-cd backend
+| Service | Port | Description |
+|---------|------|-------------|
+| **Frontend (Nginx)** | `80` | Web UI |
+| **Backend (FastAPI)** | `8765` | REST API + SSE streams |
+| **Database (PostgreSQL)** | `5432` | Primary data store |
 
-# Install dependencies (including dev)
-uv sync --extra dev
+### Environment Variables
 
-# Copy and configure environment
-cp .env.example .env
+Copy `backend/.env.example` to `backend/.env` and adjust the following key variables:
 
-# Run database migrations
-uv run alembic upgrade head
-
-# Start the backend server
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-#### Frontend
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-```
-
-Open http://localhost:5173 in your browser.
-
-> **Note**: For development, you only need PostgreSQL running. Use `docker compose -f docker-compose.dev.yml up -d` to start just the database.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SECRET_KEY` | `change-me-in-production` | JWT signing key (change in production!) |
+| `LLM_BASE_URL` | `http://host.docker.internal:1234/v1` | OpenAI-compatible LLM API endpoint for translation |
+| `LLM_API_KEY` | `lm-studio` | LLM API key |
+| `LLM_MODEL` | (empty) | LLM model name |
+| `DB_PASSWORD` | `whisper_secret` | PostgreSQL password |
+| `MAX_FILE_SIZE_MB` | `500` | Maximum upload file size |
+| `RETENTION_DAYS` | `30` | File retention period |
 
 ---
 
@@ -154,6 +139,9 @@ Open http://localhost:5173 in your browser.
 | `PUT` | `/api/v1/admin/config/{key}` | Update system config | Admin |
 | `POST` | `/api/v1/admin/llm/test` | Test LLM connection and latency | Admin |
 | `POST` | `/api/v1/admin/llm/fetch-models` | Fetch available models from LLM backend | Admin |
+| `GET` | `/api/v1/admin/logs` | List available log files | Admin |
+| `GET` | `/api/v1/admin/logs/{filename}` | Read log file content | Admin |
+| `GET` | `/api/v1/admin/logs/{filename}/stream` | SSE real-time log stream | Admin |
 
 | `GET` | `/api/v1/models` | List all Whisper models with download status | No |
 | `POST` | `/api/v1/models/{name}/download` | Download a Whisper model | No |
@@ -163,20 +151,31 @@ Full API documentation is available at `/docs` when the backend is running.
 
 ---
 
-## Configuration
+## System Logging
 
-Configuration is managed via environment variables. Copy `backend/.env.example` to `backend/.env` and adjust:
+The service uses **loguru** for structured logging with three output targets:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SECRET_KEY` | `change-me-in-production` | JWT signing key |
-| `DATABASE_URL` | `postgresql+asyncpg://whisper:whisper_secret@localhost:5432/whisper_platform` | PostgreSQL connection |
-| `LLM_BASE_URL` | `http://host.docker.internal:8000/v1` | OpenAI-compatible LLM API endpoint |
-| `LLM_API_KEY` | `1234` | LLM API key |
-| `LLM_MODEL` | (empty, auto-selected by backend) | LLM model name |
-| `MAX_FILE_SIZE_MB` | `500` | Maximum upload file size |
-| `RETENTION_DAYS` | `30` | File retention period |
-| `CORS_ORIGINS` | `["http://localhost:5173","http://localhost:80","http://localhost"]` | Allowed CORS origins |
+| Target | Path | Description |
+|--------|------|-------------|
+| **stdout** | Docker logs | Colorized console output via `docker logs` |
+| **app.log** | `/app/storage/logs/app.log` | All log levels, rotated daily (30 days retention, gzip compressed) |
+| **error.log** | `/app/storage/logs/error.log` | Only ERROR level, same rotation policy |
+
+### Web Log Viewer
+
+Administrators can view logs directly from the web UI via the **System Logs** tab in the admin panel:
+
+- **Historical logs** — Select a log file from the left sidebar to view its contents
+- **Real-time streaming** — Click "实时日志" to tail the log file via SSE and watch new entries appear live
+- **Auto-scroll** — Automatically scrolls when near the bottom; disable to browse freely
+
+### Log API Endpoints
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| `GET` | `/api/v1/admin/logs` | List available log files | Admin |
+| `GET` | `/api/v1/admin/logs/{filename}` | Read log file content (optional `?tail=N` parameter) | Admin |
+| `GET` | `/api/v1/admin/logs/{filename}/stream` | SSE real-time log stream | Admin |
 
 ---
 
@@ -214,14 +213,15 @@ uv run pytest --cov=app --cov-report=html
 ├── backend/
 │   ├── app/
 │   │   ├── api/v1/          # REST API endpoints
-│   │   ├── core/            # Security, storage, task queue
+│   │   ├── core/            # Security, storage, task queue, logging
 │   │   ├── models/          # SQLAlchemy models
 │   │   ├── schemas/         # Pydantic schemas
 │   │   ├── services/        # Business logic services
 │   │   ├── worker/          # Background task worker
 │   │   └── startup_checker/ # System health checks
 │   ├── tests/               # Test suite
-│   └── alembic/             # Database migrations
+│   ├── alembic/             # Database migrations
+│   └── docker-entrypoint.sh # Docker container entrypoint
 ├── frontend/
 │   ├── src/
 │   │   ├── components/      # UI components
@@ -230,7 +230,7 @@ uv run pytest --cov=app --cov-report=html
 │   │   ├── lib/             # Utilities and API client
 │   │   └── types/           # TypeScript types
 │   └── public/              # Static assets
-├── storage/                 # File storage (uploads, outputs)
+├── storage/                 # File storage (uploads, outputs, logs)
 ├── docker-compose.yml       # Production deployment
 └── docker-compose.dev.yml   # Development database
 ```
