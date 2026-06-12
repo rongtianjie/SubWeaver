@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { authApi } from '@/lib/api';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { UserMenu } from '@/components/shared/UserMenu';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Film, BarChart3, Settings, Cpu, MessageSquare, FileText, ArrowLeft, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Loader2, Film, BarChart3, Settings, Cpu, MessageSquare, FileText, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -21,7 +20,12 @@ const navItems = [
 export function AdminLayout() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const collapsed = !isHovered;
+
+  const handleNavClick = useCallback(() => {
+    setIsHovered(false);
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -84,6 +88,8 @@ export function AdminLayout() {
       <div className="flex">
         {/* Sidebar */}
         <aside
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
           className={cn(
             'shrink-0 border-r bg-card/50 min-h-[calc(100vh-4rem)] sticky top-16 self-start transition-all duration-300 ease-in-out overflow-hidden',
             collapsed ? 'w-16' : 'w-60'
@@ -95,13 +101,13 @@ export function AdminLayout() {
               <TooltipTrigger asChild>
                 <Link
                   to="/"
+                  onClick={handleNavClick}
                   className={cn(
-                    'flex items-center gap-3 text-sm text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-all duration-200 mb-1',
-                    collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'
+                    'flex items-center gap-3 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-all duration-200 mb-1'
                   )}
                 >
                   <ArrowLeft className="w-[18px] h-[18px] shrink-0" />
-                  {!collapsed && <span>返回首页</span>}
+                  <span className={cn('whitespace-nowrap transition-opacity duration-300', collapsed ? 'opacity-0' : '')}>返回首页</span>
                 </Link>
               </TooltipTrigger>
               {collapsed && <TooltipContent side="right">返回首页</TooltipContent>}
@@ -114,53 +120,33 @@ export function AdminLayout() {
               const linkContent = ({ isActive }: { isActive: boolean }) => (
                 <div
                   className={cn(
-                    'flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200',
-                    collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
+                    'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
                     isActive
                       ? 'bg-primary/10 text-primary shadow-sm'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                   )}
                 >
                   <item.icon className="w-[18px] h-[18px] shrink-0" />
-                  {!collapsed && <span>{item.label}</span>}
+                  <span className={cn('whitespace-nowrap transition-opacity duration-300', collapsed ? 'opacity-0' : '')}>{item.label}</span>
                 </div>
               );
 
               return collapsed ? (
                 <Tooltip key={item.to}>
                   <TooltipTrigger asChild>
-                    <NavLink to={item.to} end={item.end}>
+                    <NavLink to={item.to} end={item.end} onClick={handleNavClick}>
                       {linkContent}
                     </NavLink>
                   </TooltipTrigger>
                   <TooltipContent side="right">{item.label}</TooltipContent>
                 </Tooltip>
               ) : (
-                <NavLink key={item.to} to={item.to} end={item.end}>
+                <NavLink key={item.to} to={item.to} end={item.end} onClick={handleNavClick}>
                   {linkContent}
                 </NavLink>
               );
             })}
           </nav>
-
-          {/* Collapse toggle */}
-          <div className={cn('p-2 border-t', collapsed ? 'flex justify-center' : '')}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setCollapsed((v) => !v)}
-              className={cn('text-muted-foreground', collapsed ? '' : 'w-full justify-start gap-3 px-3')}
-            >
-              {collapsed ? (
-                <PanelLeftOpen className="w-4 h-4" />
-              ) : (
-                <>
-                  <PanelLeftClose className="w-4 h-4" />
-                  收起侧边栏
-                </>
-              )}
-            </Button>
-          </div>
         </aside>
 
         {/* Content */}
