@@ -39,42 +39,54 @@ class StartupChecker:
 
     def print_report(self, results: list[CheckResult]):
         """打印检查报告到控制台"""
-        logger.info("系统环境检查报告")
-        logger.info("=" * 60)
+        # 计算统计
+        total = len(results)
+        passed = sum(1 for r in results if r.status)
+        failed = sum(1 for r in results if not r.status and r.severity == "error")
+        warnings = sum(1 for r in results if not r.status and r.severity == "warning")
 
-        has_errors = False
-        has_warnings = False
+        logger.info("=" * 60)
+        logger.info(f"  系统环境检查报告 (共 {total} 项)")
+        logger.info("=" * 60)
 
         for r in results:
             if r.status:
-                logger.info(f"[PASS] {r.name} - {r.message}")
+                logger.info(f"  [PASS] {r.name} - {r.message}")
             else:
                 if r.severity == "error":
-                    logger.error(f"[FAIL] {r.name} - {r.message}")
+                    logger.error(f"  [FAIL] {r.name} - {r.message}")
                 elif r.severity == "warning":
-                    logger.warning(f"[WARN] {r.name} - {r.message}")
+                    logger.warning(f"  [WARN] {r.name} - {r.message}")
                 else:
-                    logger.info(f"[INFO] {r.name} - {r.message}")
+                    logger.info(f"  [INFO] {r.name} - {r.message}")
 
                 if r.guide:
+                    logger.info(f"  {'':>8}└─ 解决建议:")
                     for line in r.guide.strip().split("\n"):
-                        logger.info(f"  -> {line}")
-
-            if r.severity == "error" and not r.status:
-                has_errors = True
-            if r.severity == "warning" and not r.status:
-                has_warnings = True
+                        logger.info(f"  {'':>10}{line}")
 
         logger.info("=" * 60)
-        if has_errors:
-            logger.error("存在关键错误，部分功能不可用")
-        if has_warnings:
-            logger.warning("存在警告，建议检查")
-        if not has_errors and not has_warnings:
-            logger.info("所有检查通过！")
+        summary_parts = []
+        if passed > 0:
+            summary_parts.append(f"通过: {passed}")
+        if warnings > 0:
+            summary_parts.append(f"警告: {warnings}")
+        if failed > 0:
+            summary_parts.append(f"失败: {failed}")
+        logger.info(f"  检查结果摘要: {' | '.join(summary_parts)}")
         logger.info("=" * 60)
 
-        return not has_errors
+        if failed > 0:
+            logger.error("  存在关键错误，部分功能不可用，请修复后重启服务")
+            logger.info("=" * 60)
+        elif warnings > 0:
+            logger.warning("  所有核心功能检查通过，存在非关键警告，建议查看")
+            logger.info("=" * 60)
+        else:
+            logger.info("  所有检查通过！系统可正常运行")
+            logger.info("=" * 60)
+
+        return failed == 0
 
 
 # 全局单例

@@ -9,12 +9,22 @@ async def check_database() -> CheckResult:
     try:
         async with async_session_factory() as db:
             result = await db.execute(text("SELECT 1"))
-            await result.fetchone()
+            result.fetchone()
+        # 尝试获取数据库版本信息
+        db_info = "PostgreSQL"
+        try:
+            async with async_session_factory() as db:
+                ver_result = await db.execute(text("SELECT version()"))
+                row = ver_result.fetchone()
+                if row:
+                    db_info = row[0]
+        except Exception:
+            pass
         return CheckResult(
             name="数据库连接 (PostgreSQL)",
             status=True,
             severity="info",
-            message="PostgreSQL 连接正常",
+            message=f"连接正常 | {db_info}",
         )
     except Exception as e:
         return CheckResult(

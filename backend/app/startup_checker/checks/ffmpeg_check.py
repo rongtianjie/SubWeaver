@@ -11,11 +11,34 @@ async def check_ffmpeg() -> CheckResult:
             capture_output=True, text=True, timeout=5
         )
         version_line = result.stdout.split("\n")[0] if result.stdout else "unknown"
+
+        # 提取 ffmpeg 编译信息
+        config_line = ""
+        for line in result.stdout.split("\n"):
+            if "configuration:" in line:
+                config_line = line.strip()
+                break
+
+        # 简单统计关键编译特性
+        features = []
+        if config_line:
+            if "--enable-libx264" in config_line:
+                features.append("H.264")
+            if "--enable-libx265" in config_line:
+                features.append("H.265")
+            if "--enable-libopus" in config_line:
+                features.append("Opus")
+            if "--enable-libmp3lame" in config_line:
+                features.append("MP3")
+            if "--enable-libfdk-aac" in config_line or "--enable-libaom" in config_line:
+                features.append("AAC")
+
+        detail = f" | 编码: {', '.join(features)}" if features else ""
         return CheckResult(
             name="ffmpeg",
             status=True,
             severity="info",
-            message=f"已安装: {version_line}",
+            message=f"已安装: {version_line}{detail}",
         )
     except FileNotFoundError:
         return CheckResult(

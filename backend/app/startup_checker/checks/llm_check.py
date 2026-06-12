@@ -27,15 +27,16 @@ async def check_llm_connection() -> CheckResult:
                 name="LLM 翻译接口",
                 status=True,
                 severity="info",
-                message=f"API 可连通，模型 '{configured_model}' 可用 (base_url: {base_url})",
+                message=f"连接正常 | 配置模型 '{configured_model}' 可用 | 接口: {base_url}",
             )
         else:
             available = model_ids[:5]
+            total_available = len(model_ids)
             return CheckResult(
                 name="LLM 翻译接口",
                 status=False,
                 severity="warning",
-                message=f"API 可连通但未找到配置模型 '{configured_model}'",
+                message=f"接口连通但模型 '{configured_model}' 未找到 (接口共 {total_available} 个模型)",
                 guide=(
                     f"可用模型: {', '.join(available)}...\n"
                     f"请在系统配置中更新 llm_model，或修改环境变量 LLM_MODEL。\n"
@@ -43,11 +44,24 @@ async def check_llm_connection() -> CheckResult:
                 ),
             )
     except Exception as e:
+        # 提取错误类型
+        error_type = type(e).__name__
+        # 检查超时
+        timeout_hint = ""
+        if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+            timeout_hint = " (连接超时，请检查 LLM 服务是否正常运行)"
+        elif "connection refused" in str(e).lower():
+            timeout_hint = " (连接被拒绝，请确认 LLM 服务已启动并监听在正确端口)"
+        elif "dns" in str(e).lower() or "name or service not known" in str(e).lower():
+            timeout_hint = " (DNS 解析失败，请确认 base_url 地址正确)"
+        elif "401" in str(e) or "unauthorized" in str(e).lower():
+            timeout_hint = " (认证失败，请检查 API Key 是否正确)"
+
         return CheckResult(
             name="LLM 翻译接口",
             status=False,
             severity="warning",
-            message=f"LLM API 连接失败: {e} (base_url: {base_url})",
+            message=f"连接失败 [{error_type}]: {e}{timeout_hint} | 接口: {base_url}",
             guide=(
                 "翻译功能将不可用（转录功能不受影响）。\n"
                 "请检查 LLM 服务（如 Ollama、LM Studio、OpenAI API）是否已启动：\n"

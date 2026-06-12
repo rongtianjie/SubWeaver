@@ -1,4 +1,5 @@
 import asyncio
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -24,6 +25,42 @@ checker.register("LLM 翻译接口", check_llm_connection)
 
 worker = Worker()
 
+APP_VERSION = "1.0.0"
+
+
+def _log_startup_banner():
+    """打印启动横幅"""
+    logger.info("=" * 60)
+    logger.info(f"  {settings.APP_NAME}")
+    logger.info(f"  版本: {APP_VERSION}")
+    logger.info(f"  日志目录: {settings.STORAGE_DIR}/logs")
+    logger.info("=" * 60)
+
+
+def _log_config_summary():
+    """打印关键配置摘要（脱敏）"""
+    db_url = settings.DATABASE_URL
+    # 脱敏密码部分
+    if ":" in db_url and "@" in db_url:
+        prefix, rest = db_url.split("://", 1)
+        user_pass, host = rest.split("@", 1)
+        if ":" in user_pass:
+            user, _ = user_pass.split(":", 1)
+            db_url = f"{prefix}://{user}:****@{host}"
+
+    logger.info("  关键配置:")
+    logger.info(f"    ├─ 数据库: PostgreSQL")
+    logger.info(f"    ├─ 数据库地址: {db_url}")
+    logger.info(f"    ├─ 存储目录: {settings.STORAGE_DIR}")
+    logger.info(f"    ├─ 模型目录: {settings.WHISPER_MODEL_DIR}")
+    logger.info(f"    ├─ 文件限制: {settings.MAX_FILE_SIZE_MB}MB")
+    logger.info(f"    ├─ 保留天数: {settings.RETENTION_DAYS}天")
+    logger.info(f"    ├─ LLM 接口: {settings.LLM_BASE_URL}")
+    logger.info(f"    ├─ LLM 模型: {settings.LLM_MODEL or '(未配置)'}")
+    logger.info(f"    ├─ 默认模型: {settings.DEFAULT_WHISPER_MODEL}")
+    logger.info(f"    └─ CORS 域名: {settings.CORS_ORIGINS}")
+    logger.info("=" * 60)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,11 +68,16 @@ async def lifespan(app: FastAPI):
     # 初始化日志系统（最优先）
     setup_logging()
 
+    # 启动横幅
+    _log_startup_banner()
+
+    # 关键配置摘要
+    _log_config_summary()
+
     # 启动检查
     logger.info("正在执行系统环境检查...")
     results = await checker.run_all()
-    checker.print_report(results)
-    has_errors = any(r.severity == "error" and not r.status for r in results)
+    ok = checker.print_report(results)
 
     # 初始化默认配置
     try:
@@ -45,28 +87,37 @@ async def lifespan(app: FastAPI):
         logger.warning(f"初始化默认配置失败: {e}")
 
     # 启动 Worker（即使有非关键错误也启动）
-    if not has_errors:
+    if ok:
         app.state.worker_task = asyncio.create_task(worker.run())
-        logger.info("Worker 已启动")
     else:
-        logger.warning("存在关键错误，Worker 未启动。请修复后重启服务。")
+        logger.warning("  存在关键错误，Worker 未启动，请修复后重启服务")
+        logger.info("=" * 60)
 
+    app.state._start_time = time.time()
     yield
 
     # 清理
+    if hasattr(app.state, "_start_time"):
+        uptime = time.time() - app.state._start_time
+        logger.info(f"  服务已运行: {uptime:.0f} 秒")
+
     await worker.stop()
+
     if hasattr(app.state, "worker_task"):
         app.state.worker_task.cancel()
         try:
             await app.state.worker_task
         except asyncio.CancelledError:
             pass
-    logger.info("服务已关闭")
+
+    logger.info("=" * 60)
+    logger.info(f"  {settings.APP_NAME} v{APP_VERSION} 服务已关闭")
+    logger.info("=" * 60)
 
 
 app = FastAPI(
     title=settings.APP_NAME,
-    version="1.0.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
