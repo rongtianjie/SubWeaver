@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { taskApi } from '@/lib/api';
 import { useSSE } from '@/hooks/useSSE';
@@ -6,13 +6,23 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TaskStatusBadge } from '@/components/shared/TaskStatusBadge';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import type { Task, TaskOutput } from '@/types';
-import { ArrowLeft, Download, Clock, FileText, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Download, Clock, FileText, ChevronRight, Ban, Loader2 } from 'lucide-react';
 
 export default function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const [task, setTask] = useState<Task | null>(null);
   const [outputs, setOutputs] = useState<TaskOutput[]>([]);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const { progress, done } = useSSE(id || null);
 
   useEffect(() => {
@@ -42,6 +52,22 @@ export default function TaskDetail() {
     }
   }, [done, id]);
 
+  const handleCancel = useCallback(async () => {
+    if (!id) return;
+    setIsCancelling(true);
+    try {
+      await taskApi.cancel(id);
+      setTask(prev => prev ? { ...prev, cancel_requested: true, progress_message: '正在等待当前阶段结束...' } : prev);
+    } catch (err: any) {
+      console.error('取消任务失败:', err);
+      const msg = err?.response?.data?.detail || err?.message || '未知错误';
+      alert(`取消任务失败: ${msg}`);
+    } finally {
+      setIsCancelling(false);
+      setShowCancelDialog(false);
+    }
+  }, [id]);
+
   if (!task) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -68,12 +94,35 @@ export default function TaskDetail() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">{task.title}</CardTitle>
-            <TaskStatusBadge status={task.status} size="md" />
+            <div className="flex items-center gap-2">
+              <TaskStatusBadge status={task.status} size="md" />
+              {task.cancel_requested ? (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  正在停止...
+                </div>
+              ) : (task.status === 'queued' || task.status === 'processing') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10 h-8 gap-1"
+                  onClick={() => setShowCancelDialog(true)}
+                  disabled={isCancelling}
+                >
+                  {isCancelling ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Ban className="w-3.5 h-3.5" />
+                  )}
+                  {isCancelling ? '取消中...' : '停止'}
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Progress */}
-          {task.status !== 'completed' && task.status !== 'failed' && (
+          {task.status !== 'completed' && task.status !== 'failed' && task.status !== 'cancelled' && (
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">{task.progress_message || '等待处理...'}</span>
@@ -139,6 +188,37 @@ export default function TaskDetail() {
           )}
         </CardContent>
       </Card>
+
+      {/* 停止任务确认弹窗 */}
+      <Dialog open={showCancelDialog} onOpenChange={(open) => !open && setShowCancelDialog(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>确认停止任务</DialogTitle>
+            <DialogDescription>
+              停止后，任务将被标记为"已取消"且无法继续执行。此操作不可撤销。
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelDialog(false)}>
+              返回
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancel}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                  取消中...
+                </>
+              ) : (
+                '确认停止'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

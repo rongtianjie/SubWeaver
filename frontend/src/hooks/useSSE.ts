@@ -38,6 +38,11 @@ export function useSSE(taskId: string | null) {
       es.close();
     });
 
+    es.addEventListener('cancelled', () => {
+      setDone(true);
+      es.close();
+    });
+
     es.addEventListener('error', () => {
       setDone(true);
       es.close();

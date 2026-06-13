@@ -63,6 +63,8 @@ export const taskApi = {
 
   delete: (id: string) => api.delete(`/tasks/${id}`),
 
+  cancel: (id: string) => api.put(`/tasks/${id}/cancel`),
+
   getOutputs: (id: string) => api.get(`/tasks/${id}/outputs`),
 
   getQueueStatus: () => api.get('/tasks/queue'),

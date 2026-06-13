@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 
 from app.database import get_db
@@ -173,6 +174,36 @@ async def get_task_outputs(task_id: UUID, db: AsyncSession = Depends(get_db)):
     ]
 
 
+@router.put("/{task_id}/cancel")
+async def cancel_own_task(
+    task_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user),
+):
+    """取消自己的任务"""
+    result = await db.execute(select(Task).where(Task.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+
+    # 任务所有者或管理员可以取消
+    if current_user and task.user_id and task.user_id != current_user.id:
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="无权取消此任务")
+    elif not current_user and task.user_id is not None:
+        raise HTTPException(status_code=403, detail="无权取消此任务")
+
+    if task.status not in ("queued", "processing"):
+        raise HTTPException(status_code=400, detail="只能取消正在处理或排队中的任务")
+
+    task.cancel_requested = True
+    task.progress_message = "正在等待当前阶段结束..."
+    await db.commit()
+    await task_queue.update_queue_positions(db)
+    await db.commit()
+    return {"message": "取消请求已发送"}
+
+
 @router.get("/{task_id}/outputs/{output_id}/download")
 async def download_task_output(
     task_id: UUID,
@@ -223,7 +254,7 @@ async def stream_task_progress(task_id: UUID, db: AsyncSession = Depends(get_db)
             }
             yield {"event": "progress", "data": json.dumps(data)}
 
-            if task.status in ("completed", "failed"):
+            if task.status in ("completed", "failed", "cancelled"):
                 yield {"event": task.status, "data": json.dumps(data)}
                 break
 
