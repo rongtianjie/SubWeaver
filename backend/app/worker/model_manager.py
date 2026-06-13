@@ -5,6 +5,8 @@ import threading
 from dataclasses import dataclass
 from typing import Optional
 
+from loguru import logger
+
 from app.config import settings
 
 # 预定义模型列表
@@ -87,10 +89,28 @@ class ModelManager:
                         self._downloads[model_name].status = "completed"
                         self._downloads[model_name].progress = 100.0
             except Exception as e:
+                error_str = str(e).lower()
+                if "sha256 checksum" in error_str:
+                    logger.warning(f"模型 {model_name} 下载后 SHA256 校验失败，将自动重试: {e}")
+                    # 清理损坏文件
+                    model_path = os.path.join(settings.WHISPER_MODEL_DIR, f"{model_name}.pt")
+                    if os.path.exists(model_path):
+                        os.remove(model_path)
+                    try:
+                        whisper._download(whisper._MODELS[model_name], settings.WHISPER_MODEL_DIR, None)
+                        with self._lock:
+                            if model_name in self._downloads:
+                                self._downloads[model_name].status = "completed"
+                                self._downloads[model_name].progress = 100.0
+                        return
+                    except Exception as retry_e:
+                        error_str = str(retry_e)
+                else:
+                    error_str = str(e)
                 with self._lock:
                     if model_name in self._downloads:
                         self._downloads[model_name].status = "error"
-                        self._downloads[model_name].error_message = str(e)
+                        self._downloads[model_name].error_message = error_str
 
         thread = threading.Thread(target=_do_download, daemon=True)
         thread.start()
