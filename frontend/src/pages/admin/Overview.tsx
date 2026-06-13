@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { adminApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -45,6 +45,12 @@ function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   return `${h}时${m}分`;
+}
+
+function formatElapsed(task: Task): string {
+  if (!task.started_at) return '处理中';
+  const elapsed = (Date.now() - new Date(task.started_at).getTime()) / 1000;
+  return formatDuration(elapsed);
 }
 
 function formatTime(isoStr: string | null): string {
@@ -120,11 +126,17 @@ export default function Overview() {
     } catch { /* ignore */ }
   }, []);
 
+  const loadedRef = useRef(false);
+
   const loadAllTasks = useCallback(async (page: number) => {
-    setLoadingAll(true);
+    // 仅在首次加载时显示 loading（避免自动刷新时的页面闪动）
+    if (!loadedRef.current) {
+      setLoadingAll(true);
+    }
     try {
       const res = await adminApi.listTasks({ page, page_size: PAGE_SIZE });
       setAllTasks(res.data);
+      loadedRef.current = true;
     } catch { /* ignore */ }
     setLoadingAll(false);
   }, []);
@@ -136,6 +148,7 @@ export default function Overview() {
     const interval = setInterval(() => {
       loadActiveTasks();
       if (allPage === 1) loadAllTasks(1);
+      adminApi.getStats().then((res) => setStats(res.data)).catch(() => {});
     }, 5000);
     return () => clearInterval(interval);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -331,20 +344,26 @@ export default function Overview() {
                       )}
                     </div>
                     {task.status === 'processing' && task.progress_message && (
-                      <p className="text-xs truncate flex items-center gap-1">
-                        {task.cancel_requested && (
-                          <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                      <div className="flex items-start gap-1.5 text-xs">
+                        {task.cancel_requested ? (
+                          <Loader2 className="w-3 h-3 animate-spin shrink-0 mt-0.5" />
+                        ) : (
+                          <Loader2 className="w-3 h-3 animate-spin shrink-0 mt-0.5 text-primary" />
                         )}
-                        <span>{task.progress_message}</span>
-                      </p>
+                        <span className="text-muted-foreground">{task.progress_message}</span>
+                      </div>
                     )}
                     {task.status === 'processing' && (
                       <div className="space-y-1">
-                        <Progress value={task.progress * 100} className="h-1.5" />
-                        <div className="flex items-center justify-end">
-                          <p className="text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between gap-2">
+                          <Progress value={task.progress * 100} className="h-2 flex-1" />
+                          <span className="text-xs font-medium text-primary shrink-0 w-10 text-right">
                             {Math.round(task.progress * 100)}%
-                          </p>
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>{task.started_at ? `已运行 ${formatElapsed(task)}` : '等待开始...'}</span>
+                          {task.status === 'processing' && <span>Whisper {task.whisper_model}</span>}
                         </div>
                       </div>
                     )}

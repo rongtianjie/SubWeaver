@@ -63,6 +63,14 @@ export default function Home() {
     loadRecentTasks();
   }, []);
 
+  // 自动刷新：当有正在执行的任务时，每 3 秒刷新列表
+  useEffect(() => {
+    const hasRunning = recentTasks.some(t => t.status === 'processing' || t.status === 'queued');
+    if (!hasRunning) return;
+    const interval = setInterval(loadRecentTasks, 3000);
+    return () => clearInterval(interval);
+  }, [recentTasks]);
+
   const loadRecentTasks = async () => {
     setLoadingTasks(true);
     try {

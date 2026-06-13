@@ -124,22 +124,33 @@ export default function TaskDetail() {
           {/* Progress */}
           {task.status !== 'completed' && task.status !== 'failed' && task.status !== 'cancelled' && (
             <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">{task.progress_message || '等待处理...'}</span>
-                <span className="font-medium text-primary">{Math.round(progressPercent)}%</span>
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
+                  {task.cancel_requested ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  ) : (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0 text-primary" />
+                  )}
+                  <span className="truncate">{task.progress_message || (task.status === 'queued' ? '排队等待中...' : '等待处理...')}</span>
+                </div>
+                <span className="font-medium text-primary shrink-0 ml-3">{Math.round(progressPercent)}%</span>
               </div>
-              <Progress value={progressPercent} className="h-2" />
-            </div>
-          )}
-
-          {/* Queue Info */}
-          {(task.status === 'pending' || task.status === 'queued') && task.queue_position && (
-            <div className="flex items-center gap-2 text-sm text-warning bg-warning/10 p-4 rounded-xl border border-warning/20">
-              <Clock className="w-4 h-4 shrink-0" />
-              <span>
-                队列位置: 第 {task.queue_position} 位
-                {task.estimated_seconds ? `，预计等待 ${Math.ceil(task.estimated_seconds / 60)} 分钟` : ''}
-              </span>
+              <Progress value={progressPercent} className="h-2.5" />
+              {task.status === 'processing' && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{task.started_at ? `已运行 ${formatDuration((Date.now() - new Date(task.started_at).getTime()) / 1000)}` : '启动中...'}</span>
+                  <span>Whisper {task.whisper_model}</span>
+                </div>
+              )}
+              {(task.status === 'pending' || task.status === 'queued') && task.queue_position && (
+                <div className="flex items-center gap-2 text-xs text-warning bg-warning/10 p-3 rounded-xl border border-warning/20">
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    队列位置: 第 {task.queue_position} 位
+                    {task.estimated_seconds ? `，预计等待 ${Math.ceil(task.estimated_seconds / 60)} 分钟` : ''}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -235,4 +246,12 @@ function InfoItem({ label, value, capitalize, truncate }: { label: string; value
 function formatLabel(output: TaskOutput): string {
   const map: Record<string, string> = { txt: '纯文本', srt: '英文字幕', bilingual_srt: '双语字幕' };
   return map[output.format_type] || output.format_type;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}秒`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}分${Math.round(seconds % 60)}秒`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return `${h}时${m}分`;
 }

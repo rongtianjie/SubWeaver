@@ -7,7 +7,7 @@ from whisper.utils import get_writer
 from loguru import logger
 
 from app.config import settings
-from app.worker.whisper_runner import whisper_runner
+from app.worker.whisper_runner import whisper_runner, get_transcribe_progress, clear_transcribe_progress
 from app.worker.translator import translator
 from app.worker.yt_dlp_downloader import yt_dlp_downloader
 from app.core.task_queue import task_queue
@@ -67,23 +67,67 @@ class Worker:
 
             try:
                 # Step 1: 获取输入源 (0% → 10%)
-                await self._update_progress(task_id, 0.05, "正在准备输入文件...")
+                if task.source_type == "url":
+                    await self._update_progress(task_id, 0.02, "正在从网络下载视频文件...")
+                else:
+                    await self._update_progress(task_id, 0.02, "正在处理上传的文件...")
                 input_path = await self._get_input(task)
+                await self._update_progress(task_id, 0.1, "输入文件已准备就绪，正在提取音频...")
 
                 if await self._is_cancelled(task_id):
                     raise asyncio.CancelledError("任务已被取消")
 
                 # Step 2: 提取音频 (10% → 20%)
-                await self._update_progress(task_id, 0.1, "正在提取音频...")
                 audio_path = self._extract_audio(input_path, task_id)
+                await self._update_progress(task_id, 0.18, "音频提取完成，正在加载 Whisper 语音识别模型...")
 
                 if await self._is_cancelled(task_id):
                     raise asyncio.CancelledError("任务已被取消")
 
                 # Step 3: Whisper 转录 (20% → 60%)
-                await self._update_progress(task_id, 0.2, "正在进行语音识别...")
-                model = whisper_runner.get_model(task.whisper_model, settings.WHISPER_MODEL_DIR)
-                result = model.transcribe(audio_path, language=None)
+                await self._update_progress(task_id, 0.2, f"正在加载 {task.whisper_model} 语音识别模型...")
+                whisper_runner.get_model(task.whisper_model, settings.WHISPER_MODEL_DIR)
+                await self._update_progress(task_id, 0.22, f"正在加载 {task.whisper_model} 语音识别模型...")
+
+                # 在线程池中运行转录，主协程轮询实时帧级进度
+                loop = asyncio.get_running_loop()
+                task_id_str = str(task_id)
+
+                transcribe_future = loop.run_in_executor(
+                    None,
+                    lambda: whisper_runner.transcribe_with_progress(
+                        task.whisper_model, audio_path, task_id_str,
+                        settings.WHISPER_MODEL_DIR, language=None
+                    )
+                )
+
+                while True:
+                    try:
+                        result = await asyncio.wait_for(
+                            asyncio.shield(transcribe_future), timeout=1.5
+                        )
+                        break  # 转录成功返回
+                    except asyncio.TimeoutError:
+                        pass  # 尚未完成，继续轮询
+
+                    # 更新实时进度
+                    progress_ratio = get_transcribe_progress(task_id_str)
+                    if progress_ratio:
+                        pct = int(progress_ratio * 100)
+                        await self._update_progress(
+                            task_id,
+                            0.25 + progress_ratio * 0.30,
+                            f"正在进行语音识别（{pct}%）..."
+                        )
+
+                    # 检查取消请求
+                    if await self._is_cancelled(task_id):
+                        transcribe_future.cancel()
+                        clear_transcribe_progress(task_id_str)
+                        raise asyncio.CancelledError("任务已被取消")
+
+                clear_transcribe_progress(task_id_str)
+                await self._update_progress(task_id, 0.55, "语音识别完成，正在生成转录结果...")
 
                 if await self._is_cancelled(task_id):
                     raise asyncio.CancelledError("任务已被取消")
@@ -91,13 +135,14 @@ class Worker:
                 # Step 4: 生成输出文件 (60% → 70%)
                 await self._update_progress(task_id, 0.6, "正在生成输出文件...")
                 output_files = await self._generate_outputs(result, task)
+                await self._update_progress(task_id, 0.7, "输出文件已生成，正在处理翻译...")
 
                 if await self._is_cancelled(task_id):
                     raise asyncio.CancelledError("任务已被取消")
 
                 # Step 5: 翻译 (70% → 95%)
                 if task.translate_target_langs and len(task.translate_target_langs) > 0:
-                    await self._update_progress(task_id, 0.7, "正在进行翻译...")
+                    await self._update_progress(task_id, 0.7, f"正在翻译字幕（0/{len(task.translate_target_langs)}）...")
                     await self._translate_outputs(task, output_files)
 
                 if await self._is_cancelled(task_id):
@@ -191,9 +236,18 @@ class Worker:
             )
             await db.commit()
 
-        translated = await translator.translate_srt(srt_path, task.translate_target_langs, base_url, api_key, model)
-        for lang, lang_path in translated.items():
-            await self._save_output_record(task.id, "bilingual_srt", f"en-{lang}", lang_path)
+        total_langs = len(task.translate_target_langs)
+        for i, lang in enumerate(task.translate_target_langs):
+            await self._update_progress(
+                task.id,
+                0.7 + (0.25 * (i + 1) / total_langs),
+                f"正在翻译到「{lang}」（{i + 1}/{total_langs}）..."
+            )
+            translated = await translator.translate_srt(srt_path, [lang], base_url, api_key, model)
+            for lang_code, lang_path in translated.items():
+                await self._save_output_record(task.id, "bilingual_srt", f"en-{lang_code}", lang_path)
+
+        await self._update_progress(task.id, 0.95, "翻译完成，正在完成后续处理...")
 
     async def _save_output_record(self, task_id: UUID, format_type: str, language_pair: str | None, file_path: str):
         """保存输出文件记录到数据库"""
