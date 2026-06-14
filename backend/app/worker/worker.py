@@ -146,8 +146,9 @@ class Worker:
 
                 # Step 5: 翻译 (70% → 95%)
                 if task.translate_target_langs and len(task.translate_target_langs) > 0:
+                    detected_lang = result.get("language", "en") or "en"
                     await self._update_progress(task_id, 0.7, f"正在翻译字幕（0/{len(task.translate_target_langs)}）...")
-                    await self._translate_outputs(task, output_files)
+                    await self._translate_outputs(task, output_files, detected_lang)
 
                 if await self._is_cancelled(task_id):
                     raise asyncio.CancelledError("任务已被取消")
@@ -217,7 +218,7 @@ class Worker:
 
         return output_files
 
-    async def _translate_outputs(self, task: Task, output_files: dict):
+    async def _translate_outputs(self, task: Task, output_files: dict, source_lang: str = "en"):
         """翻译字幕到多种目标语言"""
         from app.services.config_service import get_config_value
 
@@ -247,9 +248,9 @@ class Worker:
                 0.7 + (0.25 * (i + 1) / total_langs),
                 f"正在翻译到「{lang}」（{i + 1}/{total_langs}）..."
             )
-            translated = await translator.translate_srt(srt_path, [lang], base_url, api_key, model)
+            translated = await translator.translate_srt(srt_path, [lang], base_url, api_key, model, source_lang=source_lang)
             for lang_code, lang_path in translated.items():
-                await self._save_output_record(task.id, "bilingual_srt", f"en-{lang_code}", lang_path)
+                await self._save_output_record(task.id, "bilingual_srt", f"{source_lang}-{lang_code}", lang_path)
 
         await self._update_progress(task.id, 0.95, "翻译完成，正在完成后续处理...")
 
