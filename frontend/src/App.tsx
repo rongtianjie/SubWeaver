@@ -10,6 +10,7 @@ import SystemConfig from '@/pages/admin/SystemConfig';
 import ModelManagement from '@/pages/admin/ModelManagement';
 import LlmConfig from '@/pages/admin/LlmConfig';
 import LogViewer from '@/pages/admin/LogViewer';
+import UserManagement from '@/pages/admin/UserManagement';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
             <Route path="models" element={<ModelManagement />} />
             <Route path="llm" element={<LlmConfig />} />
             <Route path="logs" element={<LogViewer />} />
+            <Route path="users" element={<UserManagement />} />
           </Route>
         </Routes>
       </AuthProvider>

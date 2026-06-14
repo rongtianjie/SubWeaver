@@ -92,7 +92,20 @@ export const adminApi = {
 
   deleteTask: (id: string) => api.delete(`/admin/tasks/${id}`),
 
-  listUsers: () => api.get('/admin/users'),
+  listUsers: (params?: { q?: string; page?: number; page_size?: number }) =>
+    api.get('/admin/users', { params }),
+
+  toggleUserActive: (userId: string) =>
+    api.put(`/admin/users/${userId}/toggle-active`),
+
+  deleteUser: (userId: string) =>
+    api.delete(`/admin/users/${userId}`),
+
+  resetPassword: (userId: string) =>
+    api.post(`/admin/users/${userId}/reset-password`),
+
+  listUserTasks: (userId: string, params?: { page?: number; page_size?: number; status?: string }) =>
+    api.get(`/admin/users/${userId}/tasks`, { params }),
 
   updateUserRole: (userId: string, role: string) =>
     api.put(`/admin/users/${userId}/role`, { role }),

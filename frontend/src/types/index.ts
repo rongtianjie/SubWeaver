@@ -48,6 +48,23 @@ export interface UserInfo {
   created_at: string
 }
 
+export interface UserItem {
+  id: string
+  username: string
+  email: string
+  role: string
+  is_active: boolean
+  created_at: string
+  task_count: number
+}
+
+export interface UserListResponse {
+  users: UserItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
 export interface TaskListResponse {
   tasks: Task[]
   total: number

@@ -6,11 +6,12 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { UserMenu } from '@/components/shared/UserMenu';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Film, BarChart3, Settings, Cpu, MessageSquare, FileText, ArrowLeft } from 'lucide-react';
+import { Loader2, Film, BarChart3, Settings, Cpu, MessageSquare, FileText, Users, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { to: '/admin', label: '概览', icon: BarChart3, end: true },
+  { to: '/admin/users', label: '用户管理', icon: Users },
   { to: '/admin/config', label: '系统配置', icon: Settings },
   { to: '/admin/models', label: '模型管理', icon: Cpu },
   { to: '/admin/llm', label: 'LLM 配置', icon: MessageSquare },

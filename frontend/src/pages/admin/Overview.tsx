@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -198,7 +199,7 @@ export default function Overview() {
   const statCards = [
     { label: '总任务数', value: stats.total_tasks, icon: FileText, color: 'text-primary', bg: 'bg-primary/10' },
     { label: '处理中', value: stats.processing_tasks, icon: Activity, color: 'text-warning', bg: 'bg-warning/10' },
-    { label: '用户数', value: stats.total_users, icon: Users, color: 'text-success', bg: 'bg-success/10' },
+    { label: '用户数', value: stats.total_users, icon: Users, color: 'text-success', bg: 'bg-success/10', link: '/admin/users' },
     { label: '存储占用', value: `${stats.storage_usage_mb} MB`, icon: HardDrive, color: 'text-purple-500', bg: 'bg-purple-500/10' },
   ];
 
@@ -218,21 +219,33 @@ export default function Overview() {
 
       {/* 4 个统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card) => (
-          <Card key={card.label} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm text-muted-foreground">{card.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-xl ${card.bg}`}>
-                  <card.icon className={`w-5 h-5 ${card.color}`} />
+        {statCards.map((card) => {
+          const content = (
+            <Card key={card.label} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm text-muted-foreground">{card.label}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-xl ${card.bg}`}>
+                    <card.icon className={`w-5 h-5 ${card.color}`} />
+                  </div>
+                  <span className="text-2xl font-bold">{card.value}</span>
                 </div>
-                <span className="text-2xl font-bold">{card.value}</span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+
+          if (card.link) {
+            return (
+              <Link key={card.label} to={card.link} className="block cursor-pointer">
+                {content}
+              </Link>
+            );
+          }
+
+          return content;
+        })}
       </div>
 
       {/* 任务状态分布 */}

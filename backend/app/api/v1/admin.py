@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sse_starlette.sse import EventSourceResponse
@@ -168,11 +168,42 @@ async def retry_task(
 
 @router.get("/users")
 async def admin_list_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    q: str = Query(None, description="按用户名或邮箱模糊搜索"),
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    result = await db.execute(select(User).order_by(User.created_at))
+    query = select(User)
+    count_query = select(func.count(User.id))
+
+    if q:
+        like_pattern = f"%{q}%"
+        filter_cond = or_(User.username.ilike(like_pattern), User.email.ilike(like_pattern))
+        query = query.where(filter_cond)
+        count_query = count_query.where(filter_cond)
+
+    total = await db.scalar(count_query) or 0
+    result = await db.execute(
+        query.order_by(User.created_at)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
     users = result.scalars().all()
+
+    # 获取每个用户的任务数
+    from app.models.task import Task
+    user_ids = [u.id for u in users]
+    task_counts = {}
+    if user_ids:
+        tc_result = await db.execute(
+            select(Task.user_id, func.count(Task.id)).where(
+                Task.user_id.in_(user_ids)
+            ).group_by(Task.user_id)
+        )
+        for row in tc_result:
+            task_counts[str(row[0])] = row[1]
+
     return {
         "users": [
             {
@@ -182,9 +213,124 @@ async def admin_list_users(
                 "role": u.role,
                 "is_active": u.is_active,
                 "created_at": str(u.created_at),
+                "task_count": task_counts.get(str(u.id), 0),
             }
             for u in users
-        ]
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.put("/users/{user_id}/toggle-active")
+async def admin_toggle_user_active(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """切换用户的启用/禁用状态"""
+    if admin.id == user_id:
+        raise HTTPException(status_code=400, detail="不能禁用自己")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    user.is_active = not user.is_active
+    await db.commit()
+    return {
+        "message": f"用户 {'已启用' if user.is_active else '已禁用'}",
+        "is_active": user.is_active,
+    }
+
+
+@router.delete("/users/{user_id}")
+async def admin_delete_user(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """删除用户，关联任务保留（user_id 置空）"""
+    if admin.id == user_id:
+        raise HTTPException(status_code=400, detail="不能删除自己")
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    await db.delete(user)
+    await db.commit()
+    return {"message": "用户已删除"}
+
+
+@router.post("/users/{user_id}/reset-password")
+async def admin_reset_password(
+    user_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """重置用户密码为随机 6 位字母数字组合"""
+    import string
+    import secrets
+    from app.core.security import hash_password
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    alphabet = string.ascii_letters + string.digits
+    new_password = ''.join(secrets.choice(alphabet) for _ in range(6))
+    user.password_hash = hash_password(new_password)
+    await db.commit()
+    return {"new_password": new_password, "message": "密码已重置"}
+
+
+@router.get("/users/{user_id}/tasks")
+async def admin_list_user_tasks(
+    user_id: UUID,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    status: str = Query(None),
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """获取指定用户的任务列表"""
+    query = select(Task).options(selectinload(Task.user)).where(Task.user_id == user_id)
+    count_query = select(func.count(Task.id)).where(Task.user_id == user_id)
+
+    if status:
+        query = query.where(Task.status == status)
+        count_query = count_query.where(Task.status == status)
+
+    total = await db.scalar(count_query) or 0
+    result = await db.execute(
+        query.order_by(desc(Task.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    tasks = result.scalars().all()
+
+    return {
+        "tasks": [
+            {
+                "id": str(t.id),
+                "title": t.title,
+                "source_type": t.source_type,
+                "source_filename": t.source_filename,
+                "status": t.status,
+                "progress": t.progress,
+                "progress_message": t.progress_message,
+                "whisper_model": t.whisper_model,
+                "translate_llm_model": t.translate_llm_model,
+                "created_at": str(t.created_at),
+                "started_at": str(t.started_at) if t.started_at else None,
+                "completed_at": str(t.completed_at) if t.completed_at else None,
+            }
+            for t in tasks
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
     }
 
 
