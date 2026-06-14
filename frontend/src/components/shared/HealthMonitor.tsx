@@ -12,8 +12,7 @@ import { WifiOff, RefreshCw, X } from 'lucide-react';
  */
 export function HealthMonitor() {
   const { backendStatus } = useBackendHealth();
-  const { user } = useAuth();
-  const { logout } = useAuth();
+  const { user, logout, consumeIntentionalLogout } = useAuth();
 
   // 追踪上一次的 user 值，用于检测 "从已登录→已登出" 的转变
   const prevUserRef = useRef(user);
@@ -27,14 +26,16 @@ export function HealthMonitor() {
   // 会话过期对话框
   const [sessionExpiredOpen, setSessionExpiredOpen] = useState(false);
 
-  // 核心检测逻辑：user 从有值变为 null → 会话已失效
+  // 核心检测逻辑：user 从有值变为 null → 会话已失效（排除用户主动登出）
   useEffect(() => {
     const prevUser = prevUserRef.current;
     prevUserRef.current = user;
 
-    // 当 user 从有值变为 null，且不是本组件主动触发的 logout
+    // 当 user 从有值变为 null，且不是本组件主动触发的 logout，且不是用户主动登出
     if (prevUser && !user && !logoutTriggeredByUs.current) {
-      setSessionExpiredOpen(true);
+      if (!consumeIntentionalLogout()) {
+        setSessionExpiredOpen(true);
+      }
     }
 
     // 重置标记

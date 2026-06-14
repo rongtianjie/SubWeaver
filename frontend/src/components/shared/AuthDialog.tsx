@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { extractApiError } from '@/lib/errors';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -27,6 +27,15 @@ export function AuthDialog({ open, onOpenChange, initialView = 'login', reason }
     }
     onOpenChange(isOpen);
   };
+
+  // 当对话框打开时，始终同步 view 到 initialView
+  // 覆盖 handleOpenChange 可能被 Radix Dialog 内部吞掉的情况
+  useEffect(() => {
+    if (open) {
+      setView(initialView);
+      setError('');
+    }
+  }, [open, initialView]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

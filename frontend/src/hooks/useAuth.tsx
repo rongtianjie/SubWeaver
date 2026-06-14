@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, useRef, createContext, useContext } from 'react';
 import { authApi } from '@/lib/api';
 import type { UserInfo } from '@/types';
 
@@ -9,6 +9,8 @@ interface AuthContextType {
   register: (username: string, email: string, password: string) => Promise<void>;
   registerAdmin: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** 检查并消费"主动登出"标记（一次性读取，读后自动重置） */
+  consumeIntentionalLogout: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -33,6 +35,8 @@ function removeToken(key: string) {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  // 标记本次 logout 是用户主动操作（用于区分会话失效）
+  const intentionalLogoutRef = useRef(false);
 
   useEffect(() => {
     const token = getToken('access_token');
@@ -74,13 +78,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    intentionalLogoutRef.current = true;
     removeToken('access_token');
     removeToken('refresh_token');
     setUser(null);
   };
 
+  const consumeIntentionalLogout = () => {
+    const val = intentionalLogoutRef.current;
+    intentionalLogoutRef.current = false;
+    return val;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, registerAdmin, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, registerAdmin, logout, consumeIntentionalLogout }}>
       {children}
     </AuthContext.Provider>
   );
