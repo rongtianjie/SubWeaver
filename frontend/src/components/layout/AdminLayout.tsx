@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { UserMenu } from '@/components/shared/UserMenu';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Film, BarChart3, Settings, Cpu, MessageSquare, FileText, Users, ArrowLeft } from 'lucide-react';
+import { Loader2, Film, BarChart3, Settings, Cpu, MessageSquare, FileText, Users, ArrowLeft, FolderOpen } from 'lucide-react';
 import { BackendStatusIndicator } from '@/components/shared/BackendStatusIndicator';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +17,7 @@ const navItems = [
   { to: '/admin/models', label: '模型管理', icon: Cpu },
   { to: '/admin/llm', label: 'LLM 配置', icon: MessageSquare },
   { to: '/admin/logs', label: '系统日志', icon: FileText },
+  { to: '/admin/files', label: '文件管理', icon: FolderOpen },
 ];
 
 export function AdminLayout() {

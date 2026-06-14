@@ -161,7 +161,7 @@ export default function Overview() {
     { label: '总任务数', value: stats.total_tasks, icon: FileText, color: 'text-primary', bg: 'bg-primary/10' },
     { label: '处理中', value: stats.processing_tasks, icon: Activity, color: 'text-warning', bg: 'bg-warning/10' },
     { label: '用户数', value: stats.total_users, icon: Users, color: 'text-success', bg: 'bg-success/10', link: '/admin/users' },
-    { label: '存储占用', value: `${stats.storage_usage_mb} MB`, icon: HardDrive, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+    { label: '存储占用', value: `${stats.storage_usage_mb} MB`, icon: HardDrive, color: 'text-purple-500', bg: 'bg-purple-500/10', link: '/admin/files' },
   ];
 
   const statusBars = [

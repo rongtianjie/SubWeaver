@@ -137,6 +137,18 @@ export const adminApi = {
 
   getLogStreamUrl: (filename: string) =>
     `/api/v1/admin/logs/${encodeURIComponent(filename)}/stream`,
+
+  listFiles: (params?: { q?: string; file_type?: string; task_id?: string; page?: number; page_size?: number; sort_by?: string; sort_order?: string }) =>
+    api.get('/admin/files', { params }),
+
+  deleteFiles: (data: { file_ids: string[]; mode: 'soft' | 'hard' }) =>
+    api.delete('/admin/files', { data }),
+
+  getFileDownloadUrl: (fileId: string) =>
+    `/api/v1/admin/files/${encodeURIComponent(fileId)}/download`,
+
+  getFilePreviewUrl: (fileId: string) =>
+    `/api/v1/admin/files/${encodeURIComponent(fileId)}/preview`,
 };
 
 // ===== 模型管理 API =====

@@ -18,6 +18,7 @@ const ModelManagement = lazy(() => import('@/pages/admin/ModelManagement'));
 const LlmConfig = lazy(() => import('@/pages/admin/LlmConfig'));
 const LogViewer = lazy(() => import('@/pages/admin/LogViewer'));
 const UserManagement = lazy(() => import('@/pages/admin/UserManagement'));
+const FileManagement = lazy(() => import('@/pages/admin/FileManagement'));
 
 function PageLoader() {
   return (
@@ -53,6 +54,7 @@ function App() {
               <Route path="llm" element={<Suspense fallback={<PageLoader />}><LlmConfig /></Suspense>} />
               <Route path="logs" element={<Suspense fallback={<PageLoader />}><LogViewer /></Suspense>} />
               <Route path="users" element={<Suspense fallback={<PageLoader />}><UserManagement /></Suspense>} />
+              <Route path="files" element={<Suspense fallback={<PageLoader />}><FileManagement /></Suspense>} />
             </Route>
           </Routes>
         </AuthProvider>

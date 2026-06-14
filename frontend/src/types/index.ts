@@ -96,3 +96,23 @@ export interface LogContent {
   content: string
   has_more: boolean
 }
+
+export interface FileItem {
+  id: string
+  filename: string
+  file_type: 'upload' | 'output' | 'orphan'
+  format_type: string | null
+  language_pair: string | null
+  file_size: number
+  file_path: string
+  task_id: string | null
+  task_title: string | null
+  created_at: string | null
+}
+
+export interface FileListResponse {
+  files: FileItem[]
+  total: number
+  page: number
+  page_size: number
+}

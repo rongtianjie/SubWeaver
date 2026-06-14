@@ -16,10 +16,12 @@ import os
 from uuid import UUID
 import json
 import gzip
+import base64
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select, func, desc, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -29,7 +31,8 @@ from app.database import get_db
 from app.dependencies import require_admin
 from app.models.user import User
 from app.models.task import Task
-from app.schemas.admin import ConfigUpdate, ConfigResponse, AdminStats, UserRoleUpdate, HealthCheckItem, LogFileInfo, LogContent
+from app.models.task_output import TaskOutput
+from app.schemas.admin import ConfigUpdate, ConfigResponse, AdminStats, UserRoleUpdate, HealthCheckItem, LogFileInfo, LogContent, FileItem, FileListResponse, FileDeleteRequest
 from app.services.config_service import get_all_configs, set_config_value, get_config_value
 from app.core.task_queue import task_queue
 from app.core.storage import storage
@@ -629,3 +632,309 @@ async def stream_log_file(
                 break
 
     return EventSourceResponse(event_generator())
+
+
+@router.get("/files", response_model=FileListResponse)
+async def list_files(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    q: str = Query(None, description="按文件名模糊搜索"),
+    file_type: str = Query(None, description="upload / output / orphan"),
+    task_id: str = Query(None, description="按任务 ID 筛选"),
+    sort_by: str = Query("created_at", description="filename / file_size / created_at"),
+    sort_order: str = Query("desc", description="asc / desc"),
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """获取文件管理列表（DB 为主 + 文件系统兜底）"""
+    all_items: list[dict] = []
+    storage_dir = settings.STORAGE_DIR
+    known_paths: set[str] = set()
+
+    # 1. 查询所有任务的上传文件
+    task_result = await db.execute(
+        select(Task).options(selectinload(Task.user)).where(Task.file_path.isnot(None))
+    )
+    tasks = task_result.scalars().all()
+    for t in tasks:
+        fp = t.file_path
+        if fp and os.path.exists(fp):
+            rel_path = os.path.relpath(fp, storage_dir)
+            known_paths.add(rel_path)
+            try:
+                file_size = os.path.getsize(fp)
+            except OSError:
+                file_size = 0
+            all_items.append({
+                "id": f"upload_{t.id}",
+                "filename": os.path.basename(fp),
+                "file_type": "upload",
+                "format_type": None,
+                "language_pair": None,
+                "file_size": file_size,
+                "file_path": rel_path,
+                "task_id": str(t.id),
+                "task_title": t.title,
+                "created_at": str(t.created_at) if t.created_at else None,
+            })
+
+    # 2. 查询所有 TaskOutput 记录
+    output_result = await db.execute(
+        select(TaskOutput).options(selectinload(TaskOutput.task))
+    )
+    outputs = output_result.scalars().all()
+    for o in outputs:
+        fp = o.file_path
+        if fp and os.path.exists(fp):
+            rel_path = os.path.relpath(fp, storage_dir)
+            known_paths.add(rel_path)
+            all_items.append({
+                "id": f"output_{o.id}",
+                "filename": os.path.basename(fp),
+                "file_type": "output",
+                "format_type": o.format_type,
+                "language_pair": o.language_pair,
+                "file_size": o.file_size or (os.path.getsize(fp) if os.path.exists(fp) else 0),
+                "file_path": rel_path,
+                "task_id": str(o.task_id),
+                "task_title": o.task.title if o.task else None,
+                "created_at": str(o.created_at) if o.created_at else None,
+            })
+
+    # 3. 扫描文件系统发现孤立文件
+    if os.path.exists(storage_dir):
+        for dirpath, _, filenames in os.walk(storage_dir):
+            for f in filenames:
+                full_path = os.path.join(dirpath, f)
+                rel_path = os.path.relpath(full_path, storage_dir)
+                if rel_path not in known_paths:
+                    try:
+                        file_id_bytes = base64.urlsafe_b64encode(rel_path.encode()).decode()
+                        all_items.append({
+                            "id": f"orphan_{file_id_bytes}",
+                            "filename": f,
+                            "file_type": "orphan",
+                            "format_type": None,
+                            "language_pair": None,
+                            "file_size": os.path.getsize(full_path),
+                            "file_path": rel_path,
+                            "task_id": None,
+                            "task_title": None,
+                            "created_at": None,
+                        })
+                    except OSError:
+                        pass
+
+    # 4. 筛选
+    if q:
+        q_lower = q.lower()
+        all_items = [item for item in all_items if q_lower in item["filename"].lower()]
+    if file_type:
+        all_items = [item for item in all_items if item["file_type"] == file_type]
+    if task_id:
+        all_items = [item for item in all_items if item["task_id"] == task_id]
+
+    # 5. 排序
+    reverse = sort_order != "asc"
+    if sort_by == "filename":
+        all_items.sort(key=lambda x: x["filename"].lower(), reverse=reverse)
+    elif sort_by == "file_size":
+        all_items.sort(key=lambda x: x["file_size"], reverse=reverse)
+    else:  # created_at
+        def _sort_key(item):
+            dt = item.get("created_at")
+            return dt or ""
+        all_items.sort(key=_sort_key, reverse=reverse)
+
+    # 6. 分页
+    total = len(all_items)
+    start = (page - 1) * page_size
+    end = start + page_size
+    page_items = all_items[start:end]
+
+    return FileListResponse(
+        files=[FileItem(**item) for item in page_items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.delete("/files")
+async def delete_files(
+    req: FileDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """删除文件（支持软删除和硬删除）"""
+    deleted_count = 0
+    errors: list[dict] = []
+
+    for file_id in req.file_ids:
+        try:
+            ftype, identifier = _parse_file_id(file_id)
+        except ValueError:
+            errors.append({"file_id": file_id, "error": "无效的文件 ID"})
+            continue
+
+        if ftype == "upload":
+            result = await db.execute(select(Task).where(Task.id == UUID(identifier)))
+            task = result.scalar_one_or_none()
+            if not task or not task.file_path:
+                errors.append({"file_id": file_id, "error": "文件记录不存在"})
+                continue
+            if task.status in ("queued", "processing"):
+                errors.append({"file_id": file_id, "error": "文件关联的任务正在处理中，无法删除"})
+                continue
+            file_path = task.file_path
+            if req.mode == "hard" and file_path and os.path.exists(file_path):
+                os.remove(file_path)
+            task.file_path = None
+            await db.commit()
+            deleted_count += 1
+
+        elif ftype == "output":
+            result = await db.execute(select(TaskOutput).where(TaskOutput.id == UUID(identifier)))
+            output = result.scalar_one_or_none()
+            if not output:
+                errors.append({"file_id": file_id, "error": "文件记录不存在"})
+                continue
+            task_result = await db.execute(select(Task).where(Task.id == output.task_id))
+            task = task_result.scalar_one_or_none()
+            if task and task.status in ("queued", "processing"):
+                errors.append({"file_id": file_id, "error": "文件关联的任务正在处理中，无法删除"})
+                continue
+            file_path = output.file_path
+            if req.mode == "hard" and file_path and os.path.exists(file_path):
+                os.remove(file_path)
+            await db.delete(output)
+            await db.commit()
+            deleted_count += 1
+
+        else:  # orphan
+            try:
+                rel_path = base64.urlsafe_b64decode(identifier.encode()).decode()
+                full_path = os.path.join(settings.STORAGE_DIR, rel_path)
+                real_path = os.path.realpath(full_path)
+                real_storage = os.path.realpath(settings.STORAGE_DIR)
+                if not real_path.startswith(real_storage):
+                    errors.append({"file_id": file_id, "error": "不允许访问该文件"})
+                    continue
+                if os.path.exists(real_path):
+                    os.remove(real_path)
+                    deleted_count += 1
+                else:
+                    errors.append({"file_id": file_id, "error": "文件不存在"})
+            except Exception:
+                errors.append({"file_id": file_id, "error": "文件路径解析失败"})
+
+    return {
+        "deleted_count": deleted_count,
+        "errors": errors,
+    }
+
+
+@router.get("/files/{file_id}/download")
+async def download_file(
+    file_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """下载文件"""
+    file_path = await _resolve_file_path(file_id, db)
+    if not file_path:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="文件已从磁盘删除")
+
+    filename = os.path.basename(file_path)
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/octet-stream",
+    )
+
+
+@router.get("/files/{file_id}/preview")
+async def preview_file(
+    file_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """预览文件：媒体文件返回流，文本文件返回内容"""
+    file_path = await _resolve_file_path(file_id, db)
+    if not file_path:
+        raise HTTPException(status_code=404, detail="文件不存在")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="文件已从磁盘删除")
+
+    filename = os.path.basename(file_path)
+    ext = os.path.splitext(filename)[1].lower()
+
+    text_exts = {".txt", ".srt", ".vtt", ".ass", ".json", ".md", ".csv"}
+    if ext in text_exts:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            with open(file_path, "r", encoding="latin-1") as f:
+                content = f.read()
+        return {"filename": filename, "content": content, "type": "text"}
+
+    # 媒体文件
+    media_types = {
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".avi": "video/x-msvideo",
+        ".mov": "video/quicktime",
+        ".mkv": "video/x-matroska",
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4",
+        ".flac": "audio/flac",
+        ".wma": "audio/x-ms-wma",
+    }
+    media_type = media_types.get(ext, "application/octet-stream")
+    return FileResponse(path=file_path, media_type=media_type)
+
+
+def _parse_file_id(file_id: str) -> tuple[str, str]:
+    """解析 file_id 为 (类型, 标识符)"""
+    if file_id.startswith("upload_"):
+        return ("upload", file_id[len("upload_"):])
+    elif file_id.startswith("output_"):
+        return ("output", file_id[len("output_"):])
+    elif file_id.startswith("orphan_"):
+        return ("orphan", file_id[len("orphan_"):])
+    raise ValueError(f"无效的文件 ID 格式: {file_id}")
+
+
+async def _resolve_file_path(file_id: str, db: AsyncSession) -> str | None:
+    """根据 file_id 解析文件绝对路径"""
+    try:
+        ftype, identifier = _parse_file_id(file_id)
+    except ValueError:
+        return None
+
+    if ftype == "upload":
+        result = await db.execute(select(Task).where(Task.id == UUID(identifier)))
+        task = result.scalar_one_or_none()
+        return task.file_path if task else None
+
+    elif ftype == "output":
+        result = await db.execute(select(TaskOutput).where(TaskOutput.id == UUID(identifier)))
+        output = result.scalar_one_or_none()
+        return output.file_path if output else None
+
+    else:  # orphan
+        try:
+            rel_path = base64.urlsafe_b64decode(identifier.encode()).decode()
+            full_path = os.path.join(settings.STORAGE_DIR, rel_path)
+            real_path = os.path.realpath(full_path)
+            real_storage = os.path.realpath(settings.STORAGE_DIR)
+            if real_path.startswith(real_storage):
+                return real_path
+        except Exception:
+            pass
+        return None
