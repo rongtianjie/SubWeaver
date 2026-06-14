@@ -31,18 +31,53 @@ export default function TaskDetail() {
     taskApi.getOutputs(id).then((res) => setOutputs(res.data));
   }, [id]);
 
+  // 任务处理中时每秒轮询刷新
+  useEffect(() => {
+    if (!id || !task) return;
+    if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await taskApi.get(id);
+        setTask((prev) => {
+          if (!prev) return res.data;
+          const next = res.data;
+          // 保留 SSE 推送的消息字段，避免轮询返回 null 时冲掉实时进度
+          return {
+            ...prev,
+            status: next.status,
+            progress: next.progress,
+            progress_message: next.progress_message || prev.progress_message,
+            queue_position: next.queue_position,
+            estimated_seconds: next.estimated_seconds,
+            error_message: next.error_message,
+          };
+        });
+        if (res.data.status === 'completed') {
+          taskApi.getOutputs(id).then((out) => setOutputs(out.data));
+        }
+      } catch (err) {
+        // 静默失败，下次轮询重试
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [id, task?.status]);
+
   useEffect(() => {
     if (progress && task) {
-      setTask((prev) =>
-        prev ? {
+      setTask((prev) => {
+        if (!prev) return prev;
+        return {
           ...prev,
           status: progress.status as Task['status'],
           progress: progress.progress,
-          progress_message: progress.message,
+          // SSE 消息为 null 时不覆盖，避免轮询保留的消息被冲掉
+          ...(progress.message ? { progress_message: progress.message } : {}),
           queue_position: progress.queue_position,
           estimated_seconds: progress.estimated_seconds,
-        } : prev
-      );
+        };
+      });
     }
   }, [progress]);
 

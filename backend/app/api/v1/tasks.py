@@ -235,28 +235,30 @@ async def download_task_output(
 
 
 @router.get("/{task_id}/stream")
-async def stream_task_progress(task_id: UUID, db: AsyncSession = Depends(get_db)):
-    """SSE 实时进度推送"""
+async def stream_task_progress(task_id: UUID):
+    """SSE 实时进度推送（每次轮询使用独立数据库会话，避免会话缓存导致进度数据不更新）"""
+    from app.database import async_session_factory
 
     async def event_generator():
         while True:
-            task = await task_service.get_task(db, task_id)
-            if not task:
-                yield {"event": "error", "data": json.dumps({"message": "任务不存在"})}
-                break
+            async with async_session_factory() as fresh_db:
+                task = await task_service.get_task(fresh_db, task_id)
+                if not task:
+                    yield {"event": "error", "data": json.dumps({"message": "任务不存在"})}
+                    break
 
-            data = {
-                "status": task.status,
-                "progress": task.progress,
-                "message": task.progress_message,
-                "queue_position": task.queue_position,
-                "estimated_seconds": task.estimated_seconds,
-            }
-            yield {"event": "progress", "data": json.dumps(data)}
+                data = {
+                    "status": task.status,
+                    "progress": task.progress,
+                    "message": task.progress_message,
+                    "queue_position": task.queue_position,
+                    "estimated_seconds": task.estimated_seconds,
+                }
+                yield {"event": "progress", "data": json.dumps(data)}
 
-            if task.status in ("completed", "failed", "cancelled"):
-                yield {"event": task.status, "data": json.dumps(data)}
-                break
+                if task.status in ("completed", "failed", "cancelled"):
+                    yield {"event": task.status, "data": json.dumps(data)}
+                    break
 
             await asyncio.sleep(1)
 

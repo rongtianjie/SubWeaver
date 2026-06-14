@@ -62,6 +62,7 @@ class Worker:
                     logger.info(f"任务 {task_id} 在开始处理前已被取消")
                     return
                 t.status = "processing"
+                t.progress_message = "正在准备处理..."
                 t.started_at = __import__("datetime").datetime.now().astimezone()
                 await db.commit()
 

@@ -1,11 +1,14 @@
 """Whisper 转录封装（带模型缓存和实时进度）"""
 import os
+import sys
 import threading
 
 import whisper
-import whisper.transcribe as wt
 import tqdm
 from loguru import logger
+
+# 访问 whisper.transcribe 的实际子模块（包 __init__.py 将其导出为函数，遮蔽了模块）
+_wt_module = sys.modules['whisper.transcribe']
 
 
 # 线程安全的进度存储
@@ -95,15 +98,15 @@ class WhisperRunner:
         """
         model = self.get_model(model_name, download_root)
 
-        original_tqdm = wt.tqdm.tqdm
+        original_tqdm = _wt_module.tqdm.tqdm
         try:
-            wt.tqdm.tqdm = lambda *args, **kw: _ProgressTqdm(
+            _wt_module.tqdm.tqdm = lambda *args, **kw: _ProgressTqdm(
                 *args, task_id=task_id, **kw
             )
             # verbose=False → 让 whisper 激活 tqdm 实例（默认 None 时 disable=True）
             return model.transcribe(audio_path, verbose=False, **kwargs)
         finally:
-            wt.tqdm.tqdm = original_tqdm
+            _wt_module.tqdm.tqdm = original_tqdm
 
 
 whisper_runner = WhisperRunner()
