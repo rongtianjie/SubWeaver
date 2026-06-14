@@ -61,6 +61,19 @@ export function AuthDialog({ open, onOpenChange, initialView = 'login' }: AuthDi
   );
 }
 
+// 简单的 base64 编码/解码（基本混淆，防止明文直接可见）
+function encodePassword(pwd: string): string {
+  return btoa(unescape(encodeURIComponent(pwd)));
+}
+
+function decodePassword(encoded: string): string {
+  try {
+    return decodeURIComponent(escape(atob(encoded)));
+  } catch {
+    return '';
+  }
+}
+
 function LoginForm({
   loading, setLoading, error, setError, onSuccess, onSwitchToRegister,
 }: {
@@ -69,10 +82,12 @@ function LoginForm({
   onSuccess: () => void; onSwitchToRegister: () => void;
 }) {
   const { login } = useAuth();
-  const [username, setUsername] = useState(localStorage.getItem('saved_username') || '');
-  const [password, setPassword] = useState(localStorage.getItem('saved_password') || '');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [savePassword, setSavePassword] = useState(!!localStorage.getItem('saved_password'));
+  const savedUsername = localStorage.getItem('saved_username') || '';
+  const savedPwdEncoded = localStorage.getItem('saved_pwd') || '';
+  const [username, setUsername] = useState(savedUsername);
+  const [password, setPassword] = useState(savedPwdEncoded ? decodePassword(savedPwdEncoded) : '');
+  const [rememberMe, setRememberMe] = useState(!!savedUsername);
+  const [savePassword, setSavePassword] = useState(!!savedPwdEncoded);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,12 +95,17 @@ function LoginForm({
     setError('');
     try {
       await login(username, password, rememberMe);
-      if (savePassword) {
+      // 保存用户名
+      if (rememberMe) {
         localStorage.setItem('saved_username', username);
-        localStorage.setItem('saved_password', password);
       } else {
         localStorage.removeItem('saved_username');
-        localStorage.removeItem('saved_password');
+      }
+      // 保存密码（base64 编码）
+      if (savePassword) {
+        localStorage.setItem('saved_pwd', encodePassword(password));
+      } else {
+        localStorage.removeItem('saved_pwd');
       }
       onSuccess();
     } catch (err: any) {
@@ -99,11 +119,11 @@ function LoginForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <label className="text-sm font-medium">用户名或邮箱</label>
-        <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="输入用户名或邮箱" required />
+        <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="输入用户名或邮箱" required autoComplete="username" />
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">密码</label>
-        <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="输入密码" required />
+        <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="输入密码" required autoComplete="current-password" />
       </div>
       <div className="flex items-center justify-between text-sm">
         <label className="flex items-center gap-1.5 cursor-pointer">
@@ -158,15 +178,15 @@ function RegisterForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
         <label className="text-sm font-medium">用户名</label>
-        <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="输入用户名" required minLength={3} />
+        <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="输入用户名" required minLength={3} autoComplete="username" />
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">邮箱</label>
-        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="输入邮箱" required />
+        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="输入邮箱" required autoComplete="email" />
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">密码</label>
-        <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="输入密码（至少6位）" required minLength={6} />
+        <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="输入密码（至少6位）" required minLength={6} autoComplete="new-password" />
       </div>
       {error && <p className="text-sm text-destructive bg-destructive/10 rounded-lg p-2">{error}</p>}
       <Button className="w-full" type="submit" disabled={loading} size="lg">

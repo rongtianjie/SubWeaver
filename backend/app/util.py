@@ -1,6 +1,7 @@
+import asyncio
 import whisper
 from whisper.utils import get_writer
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 import srt
 from loguru import logger
 import subprocess
@@ -51,3 +52,45 @@ def translate_subtitles(subtitles, client, model):
                                                  end=subtitle.end,
                                                  content=combined_text))
     return translated_subtitles
+
+
+async def _translate_single_async(subtitle, client: AsyncOpenAI, model: str, semaphore: asyncio.Semaphore) -> srt.Subtitle:
+    """异步翻译单条字幕，使用 Semaphore 控制并发"""
+    async with semaphore:
+        try:
+            completion = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "user", "content": f"Please translate the following English subtitles from a movie or video into Chinese and only provide the translated text: {subtitle.content}"},
+                ],
+                temperature=0.8,
+                max_tokens=100,
+            )
+            translated_text = completion.choices[0].message.content
+        except Exception as e:
+            logger.warning(f"翻译单条字幕失败 (index={subtitle.index}): {e}，保留原文")
+            translated_text = subtitle.content
+
+        combined_text = f"{subtitle.content}\n{translated_text}"
+        return srt.Subtitle(
+            index=subtitle.index,
+            start=subtitle.start,
+            end=subtitle.end,
+            content=combined_text,
+        )
+
+
+async def translate_subtitles_async(subtitles, client: AsyncOpenAI, model: str, concurrency: int = 3) -> list:
+    """异步并发翻译字幕，保留逐条翻译的稳定性，通过 Semaphore 控制并发数"""
+    semaphore = asyncio.Semaphore(concurrency)
+    total = len(subtitles)
+    logger.info(f"开始并发翻译 {total} 条字幕，并发数: {concurrency}")
+
+    tasks = [
+        _translate_single_async(sub, client, model, semaphore)
+        for sub in subtitles
+    ]
+    results = await asyncio.gather(*tasks)
+
+    logger.info(f"翻译完成: {total}/{total}")
+    return list(results)

@@ -9,7 +9,6 @@ from loguru import logger
 from app.config import settings
 from app.core.logging import setup_logging
 from app.database import async_session_factory
-from app.services.config_service import init_default_configs
 from app.startup_checker.checker import checker
 from app.startup_checker.checks.db_check import check_database
 from app.startup_checker.checks.ffmpeg_check import check_ffmpeg
@@ -65,6 +64,11 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 初始化日志系统（最优先）
     setup_logging()
+
+    # SECRET_KEY 安全检查
+    if settings.SECRET_KEY == "change-me-in-production":
+        logger.error("SECRET_KEY 使用默认值，请在 .env 中配置安全的密钥！")
+        raise RuntimeError("SECRET_KEY must be changed in production. Please set it in .env file.")
 
     # 启动横幅
     _log_startup_banner()

@@ -1,5 +1,6 @@
 import os
 import asyncio
+import datetime
 import subprocess
 from uuid import UUID
 
@@ -63,7 +64,7 @@ class Worker:
                     return
                 t.status = "processing"
                 t.progress_message = "正在准备处理..."
-                t.started_at = __import__("datetime").datetime.now().astimezone()
+                t.started_at = datetime.datetime.now().astimezone()
                 await db.commit()
 
             try:
@@ -111,18 +112,20 @@ class Worker:
                     except asyncio.TimeoutError:
                         pass  # 尚未完成，继续轮询
 
-                    # 更新实时进度
+                    # 更新实时进度并同时检查取消请求（合并为一次 DB 操作）
                     progress_ratio = get_transcribe_progress(task_id_str)
                     if progress_ratio:
                         pct = int(progress_ratio * 100)
-                        await self._update_progress(
+                        cancel_requested = await self._update_progress(
                             task_id,
                             0.25 + progress_ratio * 0.30,
-                            f"正在进行语音识别（{pct}%）..."
+                            f"正在进行语音识别（{pct}%）...",
+                            check_cancel=True,
                         )
+                    else:
+                        cancel_requested = await self._is_cancelled(task_id)
 
-                    # 检查取消请求
-                    if await self._is_cancelled(task_id):
+                    if cancel_requested:
                         transcribe_future.cancel()
                         clear_transcribe_progress(task_id_str)
                         raise asyncio.CancelledError("任务已被取消")
@@ -176,7 +179,7 @@ class Worker:
             return await yt_dlp_downloader.download(task.source_url, storage.get_output_dir(task.id))
 
     def _extract_audio(self, video_path: str, task_id: UUID) -> str:
-        """用 ffmpeg 提取音频"""
+        """用 ffmpeg 提取音频（同步方法，在 Worker 进程中运行可接受）"""
         output_dir = storage.get_output_dir(task_id)
         audio_path = os.path.join(output_dir, "audio.aac")
 
@@ -281,7 +284,6 @@ class Worker:
 
     async def _cancel_task(self, task_id: UUID):
         """标记任务为已取消状态"""
-        import datetime
         async with async_session_factory() as db:
             await db.execute(
                 update(Task)
@@ -297,19 +299,24 @@ class Worker:
             await task_queue.update_queue_positions(db)
             await db.commit()
 
-    async def _update_progress(self, task_id: UUID, progress: float, message: str):
-        """更新任务进度"""
+    async def _update_progress(self, task_id: UUID, progress: float, message: str, check_cancel: bool = False) -> bool:
+        """更新任务进度，可选同时检查取消状态（合并为一次 DB 操作）"""
         async with async_session_factory() as db:
             await db.execute(
                 update(Task)
                 .where(Task.id == task_id)
                 .values(progress=progress, progress_message=message)
             )
+            if check_cancel:
+                result = await db.execute(select(Task.cancel_requested).where(Task.id == task_id))
+                cancel_requested = bool(result.scalar_one_or_none())
+            else:
+                cancel_requested = False
             await db.commit()
+            return cancel_requested
 
     async def _complete_task(self, task_id: UUID):
         """标记任务完成"""
-        import datetime
         async with async_session_factory() as db:
             await db.execute(
                 update(Task)

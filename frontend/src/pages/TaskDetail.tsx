@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { taskApi } from '@/lib/api';
+import { formatDuration } from '@/lib/format';
 import { useSSE } from '@/hooks/useSSE';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -23,7 +24,7 @@ export default function TaskDetail() {
   const [outputs, setOutputs] = useState<TaskOutput[]>([]);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const { progress, done } = useSSE(id || null);
+  const { progress, done, connected } = useSSE(id || null);
 
   useEffect(() => {
     if (!id) return;
@@ -31,10 +32,11 @@ export default function TaskDetail() {
     taskApi.getOutputs(id).then((res) => setOutputs(res.data));
   }, [id]);
 
-  // 任务处理中时每秒轮询刷新
+  // 任务处理中时轮询刷新：SSE 连接正常时禁用轮询，SSE 断开时降级为 3 秒轮询
   useEffect(() => {
     if (!id || !task) return;
     if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') return;
+    if (connected) return; // SSE 正常时跳过轮询
 
     const interval = setInterval(async () => {
       try {
@@ -59,10 +61,10 @@ export default function TaskDetail() {
       } catch (err) {
         // 静默失败，下次轮询重试
       }
-    }, 1000);
+    }, 3000);
 
     return () => clearInterval(interval);
-  }, [id, task?.status]);
+  }, [id, task?.status, connected]);
 
   useEffect(() => {
     if (progress && task) {
@@ -281,12 +283,4 @@ function InfoItem({ label, value, capitalize, truncate }: { label: string; value
 function formatLabel(output: TaskOutput): string {
   const map: Record<string, string> = { txt: '纯文本', srt: '英文字幕', bilingual_srt: '双语字幕' };
   return map[output.format_type] || output.format_type;
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}秒`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}分${Math.round(seconds % 60)}秒`;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return `${h}时${m}分`;
 }

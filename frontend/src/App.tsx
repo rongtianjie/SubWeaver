@@ -1,16 +1,29 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/hooks/useAuth';
 import { Layout } from '@/components/layout/Layout';
 import { AdminLayout } from '@/components/layout/AdminLayout';
+import { Loader2 } from 'lucide-react';
+
 import Home from '@/pages/Home';
 import TaskDetail from '@/pages/TaskDetail';
 import AdminSetup from '@/pages/AdminSetup';
-import Overview from '@/pages/admin/Overview';
-import SystemConfig from '@/pages/admin/SystemConfig';
-import ModelManagement from '@/pages/admin/ModelManagement';
-import LlmConfig from '@/pages/admin/LlmConfig';
-import LogViewer from '@/pages/admin/LogViewer';
-import UserManagement from '@/pages/admin/UserManagement';
+
+// 管理后台页面懒加载
+const Overview = lazy(() => import('@/pages/admin/Overview'));
+const SystemConfig = lazy(() => import('@/pages/admin/SystemConfig'));
+const ModelManagement = lazy(() => import('@/pages/admin/ModelManagement'));
+const LlmConfig = lazy(() => import('@/pages/admin/LlmConfig'));
+const LogViewer = lazy(() => import('@/pages/admin/LogViewer'));
+const UserManagement = lazy(() => import('@/pages/admin/UserManagement'));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+    </div>
+  );
+}
 
 function App() {
   return (
@@ -30,12 +43,12 @@ function App() {
 
           {/* Admin routes with sidebar layout */}
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Overview />} />
-            <Route path="config" element={<SystemConfig />} />
-            <Route path="models" element={<ModelManagement />} />
-            <Route path="llm" element={<LlmConfig />} />
-            <Route path="logs" element={<LogViewer />} />
-            <Route path="users" element={<UserManagement />} />
+            <Route index element={<Suspense fallback={<PageLoader />}><Overview /></Suspense>} />
+            <Route path="config" element={<Suspense fallback={<PageLoader />}><SystemConfig /></Suspense>} />
+            <Route path="models" element={<Suspense fallback={<PageLoader />}><ModelManagement /></Suspense>} />
+            <Route path="llm" element={<Suspense fallback={<PageLoader />}><LlmConfig /></Suspense>} />
+            <Route path="logs" element={<Suspense fallback={<PageLoader />}><LogViewer /></Suspense>} />
+            <Route path="users" element={<Suspense fallback={<PageLoader />}><UserManagement /></Suspense>} />
           </Route>
         </Routes>
       </AuthProvider>

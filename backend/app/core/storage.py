@@ -2,6 +2,7 @@ import os
 import shutil
 from pathlib import Path
 from uuid import UUID
+from typing import IO
 
 from app.config import settings
 
@@ -23,6 +24,15 @@ class StorageBackend:
         file_path = task_dir / filename
         with open(file_path, "wb") as f:
             f.write(content)
+        return str(file_path)
+
+    def save_upload_stream(self, task_id: UUID, filename: str, file_obj: IO) -> str:
+        """流式保存上传文件，避免将整个文件加载到内存"""
+        task_dir = self.uploads_dir / str(task_id)
+        task_dir.mkdir(parents=True, exist_ok=True)
+        file_path = task_dir / filename
+        with open(file_path, "wb") as out:
+            shutil.copyfileobj(file_obj, out)
         return str(file_path)
 
     def get_upload_path(self, task_id: UUID, filename: str) -> str:

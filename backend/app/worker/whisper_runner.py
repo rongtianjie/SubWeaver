@@ -43,10 +43,13 @@ def clear_transcribe_progress(task_id: str):
 
 
 class WhisperRunner:
-    """Whisper 模型管理，带缓存避免重复加载"""
+    """Whisper 模型管理，带 LRU 缓存避免重复加载"""
+
+    MAX_CACHE_SIZE = 2  # 最多同时缓存 2 个模型
 
     def __init__(self):
         self._model_cache: dict[str, whisper.Whisper] = {}
+        self._cache_order: list[str] = []  # LRU 顺序，最近使用的在末尾
         self._cache_lock = threading.Lock()
 
     def _is_checksum_error(self, error: Exception) -> bool:
@@ -63,20 +66,34 @@ class WhisperRunner:
         return whisper.load_model(model_name, download_root=download_root)
 
     def get_model(self, model_name: str, download_root: str | None = None) -> whisper.Whisper:
-        """获取模型（缓存已加载的模型），线程安全"""
+        """获取模型（LRU 缓存已加载的模型），线程安全"""
         with self._cache_lock:
-            if model_name not in self._model_cache:
-                try:
-                    logger.info(f"加载 Whisper 模型: {model_name}")
-                    self._model_cache[model_name] = whisper.load_model(
-                        model_name, download_root=download_root
-                    )
-                except Exception as e:
-                    if self._is_checksum_error(e):
-                        logger.warning(f"模型 {model_name} SHA256 校验失败，将自动删除并重新下载: {e}")
-                        self._model_cache[model_name] = self._redownload_model(model_name, download_root)
-                    else:
-                        raise
+            if model_name in self._model_cache:
+                # 更新 LRU 顺序
+                self._cache_order.remove(model_name)
+                self._cache_order.append(model_name)
+                return self._model_cache[model_name]
+
+            # 缓存未满时直接加载
+            if len(self._model_cache) >= self.MAX_CACHE_SIZE:
+                # 淘汰最久未使用的模型
+                evict_name = self._cache_order.pop(0)
+                del self._model_cache[evict_name]
+                logger.info(f"LRU 淘汰 Whisper 模型缓存: {evict_name}")
+
+            try:
+                logger.info(f"加载 Whisper 模型: {model_name}")
+                self._model_cache[model_name] = whisper.load_model(
+                    model_name, download_root=download_root
+                )
+            except Exception as e:
+                if self._is_checksum_error(e):
+                    logger.warning(f"模型 {model_name} SHA256 校验失败，将自动删除并重新下载: {e}")
+                    self._model_cache[model_name] = self._redownload_model(model_name, download_root)
+                else:
+                    raise
+
+            self._cache_order.append(model_name)
             return self._model_cache[model_name]
 
     def transcribe(self, model_name: str, audio_path: str, download_root: str | None = None, **kwargs) -> dict:

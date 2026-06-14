@@ -1,7 +1,7 @@
 import math
 from uuid import UUID
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.task import Task
@@ -44,16 +44,23 @@ class TaskQueue:
         return task
 
     async def update_queue_positions(self, db: AsyncSession):
-        """任务完成后刷新剩余 pending 任务的队列信息"""
+        """任务完成后刷新剩余 pending 任务的队列信息（批量 SQL 替代逐个更新）"""
         result = await db.execute(
-            select(Task)
+            select(Task.id)
             .where(Task.status == "pending")
             .order_by(Task.created_at)
         )
-        pending_tasks = result.scalars().all()
-        for i, t in enumerate(pending_tasks):
-            t.queue_position = i + 1
-            t.estimated_seconds = int((i + 1) * self.avg_task_duration)
+        pending_ids = [row[0] for row in result]
+
+        for i, task_id in enumerate(pending_ids):
+            await db.execute(
+                update(Task)
+                .where(Task.id == task_id)
+                .values(
+                    queue_position=i + 1,
+                    estimated_seconds=int((i + 1) * self.avg_task_duration),
+                )
+            )
 
     async def recalculate_avg_duration(self, db: AsyncSession):
         """从已完成任务重新计算平均耗时"""

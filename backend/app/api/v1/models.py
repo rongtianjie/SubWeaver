@@ -1,6 +1,8 @@
 """Whisper 模型管理 API"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.dependencies import require_admin
+from app.models.user import User
 from app.worker.model_manager import model_manager, AVAILABLE_MODELS
 
 router = APIRouter(prefix="/models", tags=["模型管理"])
@@ -13,7 +15,7 @@ async def list_models():
 
 
 @router.post("/{model_name}/download")
-async def download_model(model_name: str):
+async def download_model(model_name: str, admin: User = Depends(require_admin)):
     """下载指定 Whisper 模型"""
     if model_name not in {m["name"] for m in AVAILABLE_MODELS}:
         raise HTTPException(
@@ -29,7 +31,7 @@ async def download_model(model_name: str):
 
 
 @router.delete("")
-async def delete_all_models():
+async def delete_all_models(admin: User = Depends(require_admin)):
     """删除所有已下载的 Whisper 模型"""
     deleted = model_manager.delete_all_models()
     return {"message": f"已删除 {deleted} 个模型文件", "deleted": deleted}

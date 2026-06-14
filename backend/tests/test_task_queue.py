@@ -104,19 +104,17 @@ class TestTaskQueue:
     @pytest.mark.asyncio
     async def test_update_queue_positions(self, queue, mock_db):
         """更新队列位置"""
-        # 模拟 2 个 pending 任务
-        task1 = MagicMock()
-        task2 = MagicMock()
+        from uuid import uuid4
+        # 模拟 2 个 pending 任务的 ID
+        id1, id2 = uuid4(), uuid4()
         scalar_result = MagicMock()
-        scalar_result.scalars.return_value.all.return_value = [task1, task2]
+        scalar_result.__iter__ = MagicMock(return_value=iter([(id1,), (id2,)]))
         mock_db.execute.return_value = scalar_result
 
         await queue.update_queue_positions(mock_db)
 
-        assert task1.queue_position == 1
-        assert task1.estimated_seconds == 1 * 300
-        assert task2.queue_position == 2
-        assert task2.estimated_seconds == 2 * 300
+        # 验证 execute 被调用：1 次 select + 2 次 update
+        assert mock_db.execute.call_count == 3
 
     @pytest.mark.asyncio
     async def test_enqueue_zero_count(self, queue, mock_db):

@@ -46,7 +46,16 @@ async def delete_uploaded_file(
     current_user: User = Depends(get_current_user),
 ):
     """删除已上传的文件"""
-    file_path = Path(storage.uploads_dir) / str(current_user.id) / filename
+    # 防止路径穿越攻击
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="非法文件名")
+
+    user_dir = (Path(storage.uploads_dir) / str(current_user.id)).resolve()
+    file_path = (user_dir / filename).resolve()
+
+    if not str(file_path).startswith(str(user_dir)):
+        raise HTTPException(status_code=403, detail="不允许访问该文件")
+
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="文件不存在")
 

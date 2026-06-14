@@ -9,7 +9,6 @@ from app.schemas.auth import (
 )
 from app.services.auth_service import auth_service
 from app.core.security import decode_access_token, create_access_token
-from app.database import get_db
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 

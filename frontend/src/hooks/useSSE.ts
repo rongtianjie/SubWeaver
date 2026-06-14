@@ -12,6 +12,7 @@ interface SSEProgress {
 export function useSSE(taskId: string | null) {
   const [progress, setProgress] = useState<SSEProgress | null>(null);
   const [done, setDone] = useState(false);
+  const [connected, setConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -20,6 +21,8 @@ export function useSSE(taskId: string | null) {
     const url = taskApi.getStreamUrl(taskId);
     const es = new EventSource(url);
     eventSourceRef.current = es;
+
+    es.onopen = () => setConnected(true);
 
     es.addEventListener('progress', (event) => {
       const data = JSON.parse(event.data);
@@ -44,8 +47,8 @@ export function useSSE(taskId: string | null) {
     });
 
     es.addEventListener('error', () => {
-      setDone(true);
-      es.close();
+      setConnected(false);
+      // 网络错误时不立即标记 done，允许轮询降级
     });
 
     return () => {
@@ -53,5 +56,5 @@ export function useSSE(taskId: string | null) {
     };
   }, [taskId]);
 
-  return { progress, done };
+  return { progress, done, connected };
 }

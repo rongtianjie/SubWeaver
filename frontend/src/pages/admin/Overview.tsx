@@ -1,12 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { adminApi } from '@/lib/api';
+import { formatDuration, formatTime, formatFileSize } from '@/lib/format';
+import { TaskStatusBadge } from '@/components/shared/TaskStatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
 import {
   Activity, Users, FileText, HardDrive, Loader2, Cpu, User, PlayCircle,
-  Clock, CheckCircle2, XCircle, Timer, Globe, Upload, ChevronLeft, ChevronRight, AlertCircle, Ban, Trash2,
+  Clock, Timer, Globe, Upload, ChevronLeft, ChevronRight, AlertCircle, Ban, Trash2,
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -40,25 +42,10 @@ interface TaskListResponse {
 
 const PAGE_SIZE = 20;
 
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}秒`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}分${Math.round(seconds % 60)}秒`;
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return `${h}时${m}分`;
-}
-
 function formatElapsed(task: Task): string {
   if (!task.started_at) return '处理中';
   const elapsed = (Date.now() - new Date(task.started_at).getTime()) / 1000;
   return formatDuration(elapsed);
-}
-
-function formatTime(isoStr: string | null): string {
-  if (!isoStr) return '--';
-  const d = new Date(isoStr);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getMonth() + 1}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function getTaskDuration(task: Task): string {
@@ -73,32 +60,6 @@ function getTaskDuration(task: Task): string {
   if (!task.started_at || !task.completed_at) return '--';
   const dur = (new Date(task.completed_at).getTime() - new Date(task.started_at).getTime()) / 1000;
   return formatDuration(dur);
-}
-
-function formatFileSize(bytes: number | null | undefined): string {
-  if (!bytes || bytes <= 0) return '-';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-function StatusBadgeIcon({ status }: { status: Task['status'] }) {
-  const config: Record<Task['status'], { icon: React.ReactNode; variant: 'success' | 'warning' | 'destructive' | 'secondary' | 'default'; label: string }> = {
-    pending: { icon: <Clock className="w-3 h-3" />, variant: 'secondary', label: '等待中' },
-    queued: { icon: <Timer className="w-3 h-3" />, variant: 'default', label: '排队中' },
-    processing: { icon: <Loader2 className="w-3 h-3 animate-spin" />, variant: 'warning', label: '处理中' },
-    completed: { icon: <CheckCircle2 className="w-3 h-3" />, variant: 'success', label: '已完成' },
-    failed: { icon: <XCircle className="w-3 h-3" />, variant: 'destructive', label: '失败' },
-    cancelled: { icon: <Ban className="w-3 h-3" />, variant: 'secondary', label: '已取消' },
-  };
-  const c = config[status];
-  if (!c) return null;
-  return (
-    <Badge variant={c.variant} className="gap-1 shrink-0 text-xs">
-      {c.icon}
-      {c.label}
-    </Badge>
-  );
 }
 
 function SourceTypeIcon({ source_type }: { source_type: string }) {
@@ -303,7 +264,7 @@ export default function Overview() {
                         <span className="text-sm font-medium truncate" title={task.title}>{task.title}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <StatusBadgeIcon status={task.status} />
+                        <TaskStatusBadge status={task.status} />
                         {task.status === 'processing' && !task.cancel_requested && (
                           <Button
                             variant="outline"
@@ -433,7 +394,7 @@ export default function Overview() {
                   <div key={task.id} className="px-6 py-3 hover:bg-muted/40 transition-colors">
                     {/* 桌面端 */}
                     <div className="hidden md:grid grid-cols-[75px_1.2fr_0.7fr_0.8fr_0.6fr_0.6fr_0.7fr_0.6fr_60px] gap-4 items-center">
-                      <StatusBadgeIcon status={task.status} />
+                      <TaskStatusBadge status={task.status} />
                       <div className="flex items-center gap-1.5 min-w-0">
                         <SourceTypeIcon source_type={task.source_type} />
                         <span className="text-sm truncate" title={task.title}>
@@ -478,7 +439,7 @@ export default function Overview() {
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
-                          <StatusBadgeIcon status={task.status} />
+                          <TaskStatusBadge status={task.status} />
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

@@ -377,12 +377,20 @@ async def admin_stats(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    total_tasks = await db.scalar(select(func.count(Task.id))) or 0
-    pending = await db.scalar(select(func.count(Task.id)).where(Task.status == "pending")) or 0
-    processing = await db.scalar(select(func.count(Task.id)).where(Task.status.in_(["queued", "processing"]))) or 0
-    completed = await db.scalar(select(func.count(Task.id)).where(Task.status == "completed")) or 0
-    failed = await db.scalar(select(func.count(Task.id)).where(Task.status == "failed")) or 0
-    cancelled = await db.scalar(select(func.count(Task.id)).where(Task.status == "cancelled")) or 0
+    from sqlalchemy import case
+
+    # 合并为一条聚合查询替代 6 条独立 count
+    status_counts = await db.execute(
+        select(
+            func.count(Task.id).label("total"),
+            func.count(case((Task.status == "pending", 1))).label("pending"),
+            func.count(case((Task.status.in_(["queued", "processing"]), 1))).label("processing"),
+            func.count(case((Task.status == "completed", 1))).label("completed"),
+            func.count(case((Task.status == "failed", 1))).label("failed"),
+            func.count(case((Task.status == "cancelled", 1))).label("cancelled"),
+        ).select_from(Task)
+    )
+    row = status_counts.one()
     total_users = await db.scalar(select(func.count(User.id))) or 0
 
     # 估算存储使用量
@@ -399,12 +407,12 @@ async def admin_stats(
                     pass
 
     return AdminStats(
-        total_tasks=total_tasks,
-        pending_tasks=pending,
-        processing_tasks=processing,
-        completed_tasks=completed,
-        failed_tasks=failed,
-        cancelled_tasks=cancelled,
+        total_tasks=row.total,
+        pending_tasks=row.pending,
+        processing_tasks=row.processing,
+        completed_tasks=row.completed,
+        failed_tasks=row.failed,
+        cancelled_tasks=row.cancelled,
         total_users=total_users,
         storage_usage_mb=round(storage_usage / (1024 * 1024), 2),
     )
@@ -422,12 +430,12 @@ async def test_llm_connection(
     api_key = req.api_key or await get_config_value(db, "llm_api_key") or settings.LLM_API_KEY
     model = req.model or await get_config_value(db, "llm_model") or settings.LLM_MODEL
 
-    from openai import OpenAI
+    from openai import AsyncOpenAI
     import time
     try:
-        client = OpenAI(base_url=base_url, api_key=api_key, timeout=15)
+        client = AsyncOpenAI(base_url=base_url, api_key=api_key, timeout=15)
         start = time.perf_counter()
-        resp = client.chat.completions.create(
+        resp = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "hi"}],
             max_tokens=10,
@@ -457,10 +465,10 @@ async def fetch_llm_models(
     admin: User = Depends(require_admin),
 ):
     """获取 LLM 后端支持的所有模型列表"""
-    from openai import OpenAI
+    from openai import AsyncOpenAI
     try:
-        client = OpenAI(base_url=req.base_url, api_key=req.api_key, timeout=15)
-        models = client.models.list()
+        client = AsyncOpenAI(base_url=req.base_url, api_key=req.api_key, timeout=15)
+        models = await client.models.list()
         # 过滤掉非聊天模型（如 OMLX 返回的 MarkItDown，其 max_model_len 为 null）
         model_ids = sorted([
             m.id for m in models
@@ -540,20 +548,37 @@ async def read_log_file(
 
     try:
         if filename.endswith(".gz"):
+            # gz 文件无法高效 seek，仍读取全部内容后取尾部
             with gzip.open(real_path, "rt", encoding="utf-8") as f:
                 lines = f.readlines()
+            total_lines = len(lines)
+            start = max(0, total_lines - tail)
+            content = "".join(lines[start:])
+            has_more = start > 0
         else:
+            # 普通日志文件：从文件末尾 seek 读取尾部 N 行
+            file_size = os.path.getsize(real_path)
+            # 估算需要读取的字节数（平均每行约 200 字节）
+            read_bytes = min(file_size, tail * 200 + 1024)
             with open(real_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
+                if read_bytes < file_size:
+                    f.seek(file_size - read_bytes)
+                    f.readline()  # 跳过不完整的行
+                lines_buffer = f.read()
 
-        total_lines = len(lines)
-        start = max(0, total_lines - tail)
-        content = "".join(lines[start:])
+            all_lines = lines_buffer.splitlines(keepends=True)
+            total_lines = len(all_lines)
+            if total_lines > tail:
+                content = "".join(all_lines[-tail:])
+                has_more = True
+            else:
+                content = "".join(all_lines)
+                has_more = read_bytes < file_size
 
         return LogContent(
             filename=filename,
             content=content,
-            has_more=start > 0,
+            has_more=has_more,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"读取日志失败: {e}")

@@ -7,9 +7,10 @@ const api = axios.create({
   },
 });
 
-// 请求拦截器：注入 token
+// 请求拦截器：注入 token（同时检查 localStorage 和 sessionStorage）
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
+  const token = localStorage.getItem('access_token')
+    || sessionStorage.getItem('access_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -23,6 +24,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
+      sessionStorage.removeItem('access_token');
+      sessionStorage.removeItem('refresh_token');
     }
     return Promise.reject(error);
   }

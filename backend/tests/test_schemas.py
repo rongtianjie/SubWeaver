@@ -130,7 +130,7 @@ class TestAdminSchemas:
     def test_admin_stats(self):
         data = AdminStats(
             total_tasks=100, pending_tasks=10, processing_tasks=2,
-            completed_tasks=85, failed_tasks=3, total_users=50,
+            completed_tasks=85, failed_tasks=3, cancelled_tasks=0, total_users=50,
             storage_usage_mb=1024.5,
         )
         assert data.total_tasks == 100

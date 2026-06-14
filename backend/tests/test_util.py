@@ -64,7 +64,7 @@ class TestTranslation:
         mock_completion.choices[0].message.content = "你好世界"
         mock_client.chat.completions.create.return_value = mock_completion
 
-        result = translate_to_chinese("Hello world", mock_client)
+        result = translate_to_chinese("Hello world", mock_client, "test-model")
         assert result == "你好世界"
 
     @patch("app.util.OpenAI")
@@ -83,7 +83,7 @@ class TestTranslation:
             srt.Subtitle(index=1, start=timedelta(seconds=1), end=timedelta(seconds=4), content="Hello world"),
         ]
 
-        translated = translate_subtitles(subtitles, mock_client)
+        translated = translate_subtitles(subtitles, mock_client, "test-model")
         assert len(translated) == 1
         assert "Hello world" in translated[0].content
         assert "你好世界" in translated[0].content

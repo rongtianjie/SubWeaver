@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { adminApi } from '@/lib/api';
+import { formatTimeFull } from '@/lib/format';
+import { TaskStatusBadge } from '@/components/shared/TaskStatusBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -22,38 +24,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   Loader2, Users, Search, MoreHorizontal, Shield, ShieldOff,
-  CheckCircle2, XCircle, Trash2, KeyRound, Clock, FileText,
-  ChevronLeft, ChevronRight, Copy, Check, Ban, Timer,
+  CheckCircle2, XCircle, Trash2, KeyRound, FileText,
+  ChevronLeft, ChevronRight, Copy, Check,
 } from 'lucide-react';
 import type { UserItem, UserListResponse, Task } from '@/types';
 
 const PAGE_SIZE = 20;
-
-function formatTime(isoStr: string | null): string {
-  if (!isoStr) return '--';
-  const d = new Date(isoStr);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function StatusBadgeIcon({ status }: { status: Task['status'] }) {
-  const config: Record<Task['status'], { icon: React.ReactNode; variant: 'success' | 'warning' | 'destructive' | 'secondary' | 'default'; label: string }> = {
-    pending: { icon: <Clock className="w-3 h-3" />, variant: 'secondary', label: '等待中' },
-    queued: { icon: <Timer className="w-3 h-3" />, variant: 'default', label: '排队中' },
-    processing: { icon: <Loader2 className="w-3 h-3 animate-spin" />, variant: 'warning', label: '处理中' },
-    completed: { icon: <CheckCircle2 className="w-3 h-3" />, variant: 'success', label: '已完成' },
-    failed: { icon: <XCircle className="w-3 h-3" />, variant: 'destructive', label: '失败' },
-    cancelled: { icon: <Ban className="w-3 h-3" />, variant: 'secondary', label: '已取消' },
-  };
-  const c = config[status];
-  if (!c) return null;
-  return (
-    <Badge variant={c.variant} className="gap-1 shrink-0 text-xs">
-      {c.icon}
-      {c.label}
-    </Badge>
-  );
-}
 
 export default function UserManagement() {
   const [data, setData] = useState<UserListResponse | null>(null);
@@ -296,8 +272,8 @@ export default function UserManagement() {
                         </span>
                       </div>
                       <span className="text-sm text-muted-foreground">{user.task_count}</span>
-                      <span className="text-sm text-muted-foreground truncate" title={formatTime(user.created_at)}>
-                        {formatTime(user.created_at)}
+                      <span className="text-sm text-muted-foreground truncate" title={formatTimeFull(user.created_at)}>
+                        {formatTimeFull(user.created_at)}
                       </span>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -379,7 +355,7 @@ export default function UserManagement() {
                           {user.is_active ? '活跃' : '已禁用'}
                         </div>
                         <span>任务数: {user.task_count}</span>
-                        <span>{formatTime(user.created_at)}</span>
+                        <span>{formatTimeFull(user.created_at)}</span>
                       </div>
                     </div>
                   </div>
@@ -507,9 +483,9 @@ export default function UserManagement() {
                       <span className="text-sm truncate" title={task.title}>{task.title}</span>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <StatusBadgeIcon status={task.status} />
+                      <TaskStatusBadge status={task.status} />
                       <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {formatTime(task.created_at)}
+                        {formatTimeFull(task.created_at)}
                       </span>
                     </div>
                   </div>

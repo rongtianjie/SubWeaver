@@ -14,7 +14,7 @@ class TestSettings:
     def test_default_settings(self):
         """验证默认配置值"""
         s = Settings()
-        assert s.APP_NAME == "Whisper Platform"
+        assert s.APP_NAME == "SubWeaver"
         assert s.DEBUG is False
         assert s.ACCESS_TOKEN_EXPIRE_MINUTES == 60
         assert s.REFRESH_TOKEN_EXPIRE_DAYS == 7

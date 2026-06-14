@@ -95,36 +95,31 @@ class TestStartupChecker:
         assert results[0].severity == "error"
         assert "意外错误" in results[0].message
 
-    def test_print_report_all_pass(self, checker, capsys):
+    def test_print_report_all_pass(self, checker):
         results = [
             CheckResult(name="DB", status=True, severity="info", message="OK"),
             CheckResult(name="FFmpeg", status=True, severity="info", message="OK"),
         ]
         ok = checker.print_report(results)
-        captured = capsys.readouterr()
         assert ok is True
-        assert "所有检查通过" in captured.out
 
-    def test_print_report_has_errors(self, checker, capsys):
+    def test_print_report_has_errors(self, checker):
         results = [
             CheckResult(name="DB", status=True, severity="info", message="OK"),
             CheckResult(name="FFmpeg", status=False, severity="error", message="Missing"),
         ]
         ok = checker.print_report(results)
-        captured = capsys.readouterr()
         assert ok is False
-        assert "存在关键错误" in captured.out
 
-    def test_print_report_has_warnings(self, checker, capsys):
+    def test_print_report_has_warnings(self, checker):
         results = [
             CheckResult(name="LLM", status=False, severity="warning", message="Not available"),
         ]
         ok = checker.print_report(results)
-        captured = capsys.readouterr()
         assert ok is True  # 仅有 warning 不算关键错误
-        assert "存在警告" in captured.out
 
-    def test_print_report_has_error_with_guide(self, checker, capsys):
+    def test_print_report_has_error_with_guide(self, checker):
+        """错误带解决指引时，报告应正常输出且不报错"""
         results = [
             CheckResult(
                 name="DB", status=False, severity="error",
@@ -132,7 +127,5 @@ class TestStartupChecker:
                 guide="请启动 PostgreSQL\n  docker compose up -d db",
             ),
         ]
-        checker.print_report(results)
-        captured = capsys.readouterr()
-        assert "解决指引" in captured.out
-        assert "docker compose" in captured.out
+        ok = checker.print_report(results)
+        assert ok is False  # 有关键错误

@@ -1,6 +1,10 @@
 import json
+import os
 import asyncio
+import shutil
+import uuid
 from uuid import UUID
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Query
 from fastapi.responses import FileResponse
@@ -8,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sse_starlette.sse import EventSourceResponse
 
-from app.database import get_db
+from app.database import get_db, async_session_factory
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.task import Task
@@ -67,10 +71,15 @@ async def create_task(
     current_user: User | None = Depends(get_current_user),
 ):
     """创建任务：支持上传文件或提交 URL"""
-    import json
+    try:
+        parsed_formats = json.loads(output_formats)
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=400, detail="output_formats 格式无效")
 
-    parsed_formats = json.loads(output_formats)
-    parsed_langs = json.loads(translate_target_langs) if translate_target_langs else None
+    try:
+        parsed_langs = json.loads(translate_target_langs) if translate_target_langs else None
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=400, detail="translate_target_langs 格式无效")
 
     file_path = None
     source_filename = None
@@ -78,12 +87,9 @@ async def create_task(
     if source_type == "upload":
         if not file:
             raise HTTPException(status_code=400, detail="上传模式需要提供文件")
-        content = await file.read()
-        # 存储文件
-        from app.core.storage import storage
-        import uuid
+        # 流式写入，避免将整个文件加载到内存
         temp_id = uuid.uuid4()
-        file_path = storage.save_upload(temp_id, file.filename, content)
+        file_path = storage.save_upload_stream(temp_id, file.filename, file.file)
         source_filename = file.filename
         title = title or file.filename
 
@@ -102,12 +108,11 @@ async def create_task(
 
     # 如果上传文件，需要更新 file_path 到正确的 task_id 目录
     if source_type == "upload" and file_path:
-        import os
-        from pathlib import Path
         old_dir = Path(file_path).parent
-        new_path = storage.save_upload(task.id, source_filename, b"")
+        new_path = storage.get_upload_path(task.id, source_filename)
+        # 确保目标目录存在
+        Path(new_path).parent.mkdir(parents=True, exist_ok=True)
         # 移动文件
-        import shutil
         shutil.move(file_path, new_path)
         task.file_path = new_path
         # 清理临时目录
@@ -268,6 +273,6 @@ async def stream_task_progress(task_id: UUID):
                     yield {"event": task.status, "data": json.dumps(data)}
                     break
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
 
     return EventSourceResponse(event_generator())
