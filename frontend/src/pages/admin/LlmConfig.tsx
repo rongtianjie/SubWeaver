@@ -16,7 +16,7 @@ export default function LlmConfig() {
   const [fetchedModels, setFetchedModels] = useState<string[]>([]);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [fetchModelsError, setFetchModelsError] = useState<string | null>(null);
-  const [llmForm, setLlmForm] = useState({ base_url: '', api_key: '', model: '' });
+  const [llmForm, setLlmForm] = useState({ base_url: '', api_key: '', model: '', timeout: 15 });
   const [llmSaveSuccess, setLlmSaveSuccess] = useState(false);
 
   useEffect(() => {
@@ -26,6 +26,7 @@ export default function LlmConfig() {
         base_url: res.data['llm_base_url']?.value || '',
         api_key: res.data['llm_api_key']?.value || '',
         model: res.data['llm_model']?.value || '',
+        timeout: Number(res.data['llm_timeout']?.value) || 15,
       });
     }).finally(() => setLoading(false));
   }, []);
@@ -53,6 +54,7 @@ export default function LlmConfig() {
       updateConfig('llm_base_url', llmForm.base_url),
       updateConfig('llm_api_key', llmForm.api_key),
       updateConfig('llm_model', llmForm.model),
+      updateConfig('llm_timeout', llmForm.timeout),
     ]);
     setLlmSaveSuccess(true);
     setTimeout(() => setLlmSaveSuccess(false), 3000);
@@ -171,6 +173,22 @@ export default function LlmConfig() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* 超时时间 */}
+          <div className="flex items-center justify-between py-3 border-b border-border/50 gap-4 flex-wrap">
+            <div className="shrink-0">
+              <p className="text-sm font-medium">请求超时时间 (秒)</p>
+              <p className="text-xs text-muted-foreground">LLM API 请求的超时时间，默认 15 秒</p>
+            </div>
+            <Input
+              type="number"
+              min={1}
+              max={300}
+              value={llmForm.timeout}
+              onChange={(e) => setLlmForm((f) => ({ ...f, timeout: Number(e.target.value) }))}
+              className="max-w-xl"
+            />
           </div>
 
           <div className="pt-4 flex justify-end">

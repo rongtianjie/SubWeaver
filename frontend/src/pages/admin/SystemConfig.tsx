@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { adminApi, modelApi } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Activity, HardDrive, Mic } from 'lucide-react';
 
 const WHISPER_MODELS = [
   { name: 'tiny', label: 'Tiny', size_mb: 149, description: '最快, 准确度最低' },
@@ -66,8 +66,55 @@ export default function SystemConfig() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="系统配置" description="管理系统的运行参数" />
 
+      {/* 任务处理 */}
       <Card>
-        <CardContent className="pt-6 space-y-1">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-primary/10">
+              <Activity className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base">任务处理</CardTitle>
+              <CardDescription>控制任务处理的相关参数</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <ConfigField
+            label="最大并发任务数"
+            value={configs['max_concurrent_tasks']?.value ?? 1}
+            type="number"
+            description="同时处理的最大任务数量，增加此值会提高系统负载"
+            saving={saving === 'max_concurrent_tasks'}
+            saved={savedKey === 'max_concurrent_tasks'}
+            onSave={(v) => updateConfig('max_concurrent_tasks', Number(v))}
+          />
+          <ConfigField
+            label="游客每日任务上限"
+            value={configs['guest_task_limit']?.value || 3}
+            type="number"
+            description="未登录用户每天可提交的任务数量"
+            saving={saving === 'guest_task_limit'}
+            saved={savedKey === 'guest_task_limit'}
+            onSave={(v) => updateConfig('guest_task_limit', Number(v))}
+          />
+        </CardContent>
+      </Card>
+
+      {/* 存储与文件 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-primary/10">
+              <HardDrive className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base">存储与文件</CardTitle>
+              <CardDescription>管理文件存储和清理策略</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1">
           <ConfigField
             label="文件保留天数"
             value={configs['retention_days']?.value || 30}
@@ -86,19 +133,27 @@ export default function SystemConfig() {
             saved={savedKey === 'max_file_size_mb'}
             onSave={(v) => updateConfig('max_file_size_mb', Number(v))}
           />
-          <ConfigField
-            label="游客每日任务上限"
-            value={configs['guest_task_limit']?.value || 3}
-            type="number"
-            description="未登录用户每天可提交的任务数量"
-            saving={saving === 'guest_task_limit'}
-            saved={savedKey === 'guest_task_limit'}
-            onSave={(v) => updateConfig('guest_task_limit', Number(v))}
-          />
+        </CardContent>
+      </Card>
+
+      {/* Whisper 设置 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-primary/10">
+              <Mic className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Whisper 设置</CardTitle>
+              <CardDescription>语音识别模型默认配置</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-1">
           <ConfigField
             label="默认 Whisper 模型"
             value={configs['default_whisper_model']?.value || 'base'}
-            description="新任务的默认模型"
+            description="新建任务时默认选用的语音识别模型"
             type="select"
             selectOptions={WHISPER_MODELS}
             downloadedModels={downloadedModels}

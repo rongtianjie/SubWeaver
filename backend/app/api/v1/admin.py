@@ -432,11 +432,12 @@ async def test_llm_connection(
     base_url = req.base_url or await get_config_value(db, "llm_base_url") or settings.LLM_BASE_URL
     api_key = req.api_key or await get_config_value(db, "llm_api_key") or settings.LLM_API_KEY
     model = req.model or await get_config_value(db, "llm_model") or settings.LLM_MODEL
+    timeout = await get_config_value(db, "llm_timeout") or 15
 
     from openai import AsyncOpenAI
     import time
     try:
-        client = AsyncOpenAI(base_url=base_url, api_key=api_key, timeout=15)
+        client = AsyncOpenAI(base_url=base_url, api_key=api_key, timeout=int(timeout))
         start = time.perf_counter()
         resp = await client.chat.completions.create(
             model=model,

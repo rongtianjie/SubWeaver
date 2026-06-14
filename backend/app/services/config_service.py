@@ -44,6 +44,7 @@ async def init_default_configs(db: AsyncSession):
         "llm_api_key": ("1234", "LLM API 密钥"),
         "llm_model": ("", "LLM 模型名称"),
         "default_whisper_model": ("base", "默认 Whisper 模型"),
+        "llm_timeout": (15, "LLM 请求超时时间 (秒)"),
     }
 
     for key, (value, description) in defaults.items():
