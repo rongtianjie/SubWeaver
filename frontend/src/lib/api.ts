@@ -51,6 +51,8 @@ export const authApi = {
 
 // ===== 任务 API =====
 export const taskApi = {
+  getDefaults: () => api.get('/tasks/defaults'),
+
   create: (formData: FormData) =>
     api.post('/tasks', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

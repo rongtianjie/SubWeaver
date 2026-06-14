@@ -57,6 +57,13 @@ export default function Home() {
       res.data.models.forEach((m: any) => { status[m.name] = m.is_downloaded; });
       setModelStatus(status);
     }).catch(() => {});
+
+    // 获取默认 Whisper 模型配置
+    taskApi.getDefaults().then((res) => {
+      if (res.data.default_whisper_model) {
+        setModel(res.data.default_whisper_model);
+      }
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {

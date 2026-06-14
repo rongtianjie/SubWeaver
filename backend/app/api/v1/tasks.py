@@ -16,6 +16,7 @@ from app.schemas.task import (
     TaskCreate, TaskResponse, TaskOutputResponse, TaskListResponse, QueueStatusResponse
 )
 from app.services.task_service import task_service
+from app.services.config_service import get_config_value
 from app.core.task_queue import task_queue
 from app.core.storage import storage
 
@@ -44,6 +45,13 @@ def _task_to_response(task: Task) -> TaskResponse:
         started_at=str(task.started_at) if task.started_at else None,
         completed_at=str(task.completed_at) if task.completed_at else None,
     )
+
+
+@router.get("/defaults")
+async def get_task_defaults(db: AsyncSession = Depends(get_db)):
+    """获取创建任务的默认配置（公开接口，无需登录）"""
+    default_model = await get_config_value(db, "default_whisper_model", "base")
+    return {"default_whisper_model": default_model}
 
 
 @router.post("", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
