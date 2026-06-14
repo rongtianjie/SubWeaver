@@ -3,15 +3,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 
 interface AuthDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialView?: 'login' | 'register';
+  /** 显示在对话框顶部的提示原因（如会话失效） */
+  reason?: string;
 }
 
-export function AuthDialog({ open, onOpenChange, initialView = 'login' }: AuthDialogProps) {
+export function AuthDialog({ open, onOpenChange, initialView = 'login', reason }: AuthDialogProps) {
   const [view, setView] = useState<'login' | 'register'>(initialView);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +36,14 @@ export function AuthDialog({ open, onOpenChange, initialView = 'login' }: AuthDi
             {view === 'login' ? '登录后可查看任务历史和管理文件' : '注册以使用完整功能'}
           </DialogDescription>
         </DialogHeader>
+
+        {/* 会话失效提示 */}
+        {reason && (
+          <div className="mt-3 flex items-start gap-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3.5 py-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-600 dark:text-amber-400">{reason}</p>
+          </div>
+        )}
 
         <div className="mt-4">
           {view === 'login' ? (

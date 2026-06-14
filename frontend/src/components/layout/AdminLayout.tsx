@@ -7,6 +7,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { UserMenu } from '@/components/shared/UserMenu';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Film, BarChart3, Settings, Cpu, MessageSquare, FileText, Users, ArrowLeft } from 'lucide-react';
+import { BackendStatusIndicator } from '@/components/shared/BackendStatusIndicator';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -79,6 +80,7 @@ export function AdminLayout() {
             <span className="text-sm font-medium text-muted-foreground">管理后台</span>
           </div>
           <div className="flex items-center gap-2">
+            <BackendStatusIndicator />
             <ThemeToggle />
             <UserMenu />
           </div>

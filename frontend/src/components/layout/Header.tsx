@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { AuthDialog } from '@/components/shared/AuthDialog';
 import { UserMenu } from '@/components/shared/UserMenu';
 import { Film, ShieldAlert, Sparkles } from 'lucide-react';
+import { BackendStatusIndicator } from '@/components/shared/BackendStatusIndicator';
 
 export function Header() {
   const { user } = useAuth();
@@ -46,6 +47,7 @@ export function Header() {
 
           {/* Right section */}
           <nav className="flex items-center gap-2">
+            <BackendStatusIndicator />
             <ThemeToggle />
 
             {user ? (
