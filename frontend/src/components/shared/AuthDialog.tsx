@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { extractApiError } from '@/lib/errors';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, AlertCircle } from 'lucide-react';
 
 interface AuthDialogProps {
   open: boolean;
@@ -119,7 +120,7 @@ function LoginForm({
       }
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.detail || '登录失败');
+      setError(extractApiError(err, '登录失败'));
     } finally {
       setLoading(false);
     }
@@ -145,7 +146,12 @@ function LoginForm({
           <span className="text-muted-foreground">保存密码</span>
         </label>
       </div>
-      {error && <p className="text-sm text-destructive bg-destructive/10 rounded-lg p-2">{error}</p>}
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2.5">
+          <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
       <Button className="w-full" type="submit" disabled={loading} size="lg">
         {loading && <Loader2 className="w-4 h-4 animate-spin" />}
         登录
@@ -178,7 +184,7 @@ function RegisterForm({
       await register(username, email, password);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.detail || '注册失败');
+      setError(extractApiError(err, '注册失败'));
     } finally {
       setLoading(false);
     }
@@ -198,7 +204,12 @@ function RegisterForm({
         <label className="text-sm font-medium">密码</label>
         <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="输入密码（至少6位）" required minLength={6} autoComplete="new-password" />
       </div>
-      {error && <p className="text-sm text-destructive bg-destructive/10 rounded-lg p-2">{error}</p>}
+      {error && (
+        <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2.5">
+          <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
       <Button className="w-full" type="submit" disabled={loading} size="lg">
         {loading && <Loader2 className="w-4 h-4 animate-spin" />}
         注册

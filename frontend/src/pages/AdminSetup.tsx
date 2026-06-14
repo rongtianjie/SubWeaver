@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { extractApiError } from '@/lib/errors';
 import { authApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, ShieldAlert } from 'lucide-react';
+import { Loader2, ShieldAlert, AlertCircle } from 'lucide-react';
 
 export default function AdminSetup() {
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ export default function AdminSetup() {
       await registerAdmin(username, email, password);
       navigate('/admin', { replace: true });
     } catch (err: any) {
-      setError(err.response?.data?.detail || '创建管理员账号失败');
+      setError(extractApiError(err, '创建管理员账号失败'));
     } finally {
       setLoading(false);
     }
@@ -100,7 +101,10 @@ export default function AdminSetup() {
               <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="再次输入密码" required minLength={6} />
             </div>
             {error && (
-              <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-xl p-3">{error}</p>
+              <div className="flex items-start gap-2 rounded-xl bg-destructive/10 border border-destructive/20 px-3 py-2.5">
+                <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <p className="text-sm text-destructive">{error}</p>
+              </div>
             )}
             <Button className="w-full" type="submit" disabled={loading} size="lg">
               {loading && <Loader2 className="w-4 h-4 animate-spin" />}
